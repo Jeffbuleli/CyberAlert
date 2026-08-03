@@ -1,30 +1,8 @@
-import { and, eq } from "drizzle-orm";
-import { getDb, payments, pricingPlans, subscriptions } from "@/db";
+import { eq } from "drizzle-orm";
+import { getDb, payments } from "@/db";
 import { getPaymentProvider } from "@/lib/payments/providers";
+import { activateSubscription } from "@/lib/payments/reconcile";
 import { trackEvent } from "@/lib/analytics";
-
-async function activateSubscription(userId: string, planCode: string) {
-  const db = getDb();
-  const [plan] = await db
-    .select()
-    .from(pricingPlans)
-    .where(eq(pricingPlans.code, planCode))
-    .limit(1);
-  if (!plan) return;
-
-  await db
-    .update(subscriptions)
-    .set({ status: "canceled", updatedAt: new Date() })
-    .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")));
-
-  await db.insert(subscriptions).values({
-    userId,
-    planId: plan.id,
-    status: "active",
-    currentPeriodStart: new Date(),
-    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-  });
-}
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -55,8 +33,8 @@ export async function POST(req: Request) {
     if (payment.userId && payment.planCode) {
       await activateSubscription(payment.userId, payment.planCode);
     }
-    await trackEvent("payment_completed", { paymentId: payment.id });
-  } else if (status === "FAILED") {
+    await trackEvent("payment_completed", { paymentId: payment.id, via: "webhook" });
+  } else if (status === "FAILED" && payment.status !== "failed") {
     await db
       .update(payments)
       .set({ status: "failed", updatedAt: new Date() })
