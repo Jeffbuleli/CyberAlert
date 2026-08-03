@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { getDb, pricingPlans } from "@/db";
-import { BrandLogo } from "@/components/brand/logo";
+import { getSessionUser } from "@/lib/auth/session";
 import {
   Badge,
   Button,
@@ -10,16 +10,15 @@ import {
   SurfaceCard,
 } from "@/components/ui/primitives";
 import { FeatureCard } from "@/components/ui/visuals";
-import { UpgradeCheckout } from "@/components/payments/upgrade-checkout";
 import {
   IconArrowRight,
   IconBuilding,
   IconCheck,
   IconCode,
-  IconLock,
 } from "@/components/icons";
 
 export default async function PricingPage() {
+  const user = await getSessionUser().catch(() => null);
   let plans: {
     code: string;
     name: string;
@@ -64,57 +63,25 @@ export default async function PricingPage() {
 
   return (
     <div>
-      <div className="relative overflow-hidden" style={{ background: "var(--ca-hero-glow)" }}>
-        <div
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{ background: "var(--ca-grid)", backgroundSize: "32px 32px" }}
-        />
-        <Section className="relative py-12 sm:py-16">
-          <article className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-[28px] border border-[var(--ca-border)] bg-[#FAFBFE] shadow-[0_24px_64px_-30px_rgba(12,24,48,0.45)]">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-70"
-              style={{
-                background:
-                  "radial-gradient(ellipse at top right, color-mix(in srgb, var(--ca-accent) 16%, transparent), transparent 55%)",
-              }}
-            />
-            <div className="relative z-10 p-5 sm:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <BrandLogo size={56} priority />
-                  <div>
-                    <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--ca-accent)]">
-                      Cyber Alert DRC · Tarifs
-                    </p>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-[var(--ca-ink)] sm:text-3xl">
-                      Des tarifs clairs
-                    </h1>
-                  </div>
-                </div>
-                <Badge tone="info">Configurables</Badge>
-              </div>
-              <p className="mt-4 max-w-xl text-sm leading-relaxed text-[var(--ca-ink-muted)] sm:text-base">
-                Link Checker et signalement restent gratuits. Les plans développeur et les audits
-                entreprise sont gérés depuis l&apos;administration.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <MetaChip label="PawaPay Mobile Money" />
-                <MetaChip label="Activation serveur" />
-                <MetaChip label="Sans carte bancaire" />
-              </div>
-            </div>
-            <div className="relative z-10 border-t border-white/10 bg-gradient-to-r from-[#0b1020] via-[#141b2f] to-[#1a2744] px-5 py-4 sm:px-8">
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/45">
-                Transparence
-              </p>
-              <p className="mt-1.5 text-sm leading-relaxed text-white/80">
-                Paiement confirmé côté serveur avant activation Pro - pas de fausse confirmation.
-              </p>
-            </div>
-          </article>
-        </Section>
-      </div>
+      <Section className="py-12 sm:py-16">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--ca-accent)]">
+            Tarifs
+          </p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[var(--ca-ink)] sm:text-4xl">
+            Des plans simples
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-[var(--ca-ink-muted)] sm:text-base">
+            Link Checker et signalement restent gratuits. Passez à Pro uniquement quand vous
+            en avez besoin - Mobile Money, activation après confirmation.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <MetaChip label="Mobile Money" />
+            <MetaChip label="Activation confirmée" />
+            <MetaChip label="Sans carte bancaire" />
+          </div>
+        </div>
+      </Section>
 
       <Section className="pb-10 pt-2">
         <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
@@ -148,12 +115,21 @@ export default async function PricingPage() {
                 Compte sécurisé inclus
               </li>
             </ul>
-            <Link href="/register" className="mt-6 block">
-              <Button variant="secondary" className="w-full">
-                <IconCode size={16} />
-                Commencer gratuitement
-              </Button>
-            </Link>
+            {user ? (
+              <Link href="/dashboard" className="mt-6 block">
+                <Button variant="secondary" className="w-full">
+                  <IconCode size={16} />
+                  Aller à mon espace
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/register" className="mt-6 block">
+                <Button variant="secondary" className="w-full">
+                  <IconCode size={16} />
+                  Commencer gratuitement
+                </Button>
+              </Link>
+            )}
           </SurfaceCard>
 
           <SurfaceCard
@@ -190,42 +166,15 @@ export default async function PricingPage() {
                 Suivi findings + retest
               </li>
             </ul>
-            <a href="#checkout-pro" className="mt-6 block">
+            <Link href="/pricing/pay" className="mt-6 block">
               <Button className="w-full">
                 Passer à Pro
                 <IconArrowRight size={16} />
               </Button>
-            </a>
+            </Link>
           </SurfaceCard>
         </div>
       </Section>
-
-      {pro ? (
-        <Section id="checkout-pro" className="pb-10">
-          <div className="mx-auto max-w-lg">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--ca-panther)] text-white">
-                <IconLock size={20} />
-              </span>
-              <div>
-                <h2 className="text-lg font-extrabold text-[var(--ca-ink)]">
-                  Payer Developer Pro
-                </h2>
-                <p className="text-sm text-[var(--ca-ink-muted)]">
-                  Mobile Money via PawaPay - activation après confirmation serveur.
-                </p>
-              </div>
-            </div>
-            <UpgradeCheckout planCode="developer_pro" />
-            <p className="mt-3 text-center text-[11px] text-[var(--ca-ink-subtle)]">
-              Connectez-vous d&apos;abord si ce n&apos;est pas déjà fait.{" "}
-              <Link href="/login" className="font-semibold text-[var(--ca-accent)] hover:underline">
-                Connexion
-              </Link>
-            </p>
-          </div>
-        </Section>
-      ) : null}
 
       <Section className="pb-16">
         <FeatureCard

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/primitives";
 import { IconArrowRight, IconCheck, IconCode, IconLink, IconSearch } from "@/components/icons";
 import { FeatureCard } from "@/components/ui/visuals";
+import { getSessionUser } from "@/lib/auth/session";
 
 const FREE_POINTS = [
   "1 projet",
@@ -45,7 +46,9 @@ const STEPS = [
   },
 ];
 
-export default function DevelopersPage() {
+export default async function DevelopersPage() {
+  const user = await getSessionUser().catch(() => null);
+
   return (
     <div>
       <div className="relative overflow-hidden" style={{ background: "var(--ca-hero-glow)" }}>
@@ -87,27 +90,41 @@ export default function DevelopersPage() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <MetaChip label="Non-intrusif" />
                 <MetaChip label="Findings actionnables" />
-                <MetaChip label="PawaPay Mobile Money" />
+                <MetaChip label="Mobile Money" />
               </div>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                <Link href="/register" className="sm:flex-1">
-                  <Button className="w-full">
-                    <IconCode size={18} />
-                    Commencer gratuitement
-                  </Button>
-                </Link>
-                <Link href="/pricing" className="sm:flex-1">
-                  <Button variant="secondary" className="w-full">
-                    Voir Developer Pro
-                    <IconArrowRight size={16} />
-                  </Button>
-                </Link>
-                <Link href="/login" className="sm:flex-1">
-                  <Button variant="ghost" className="w-full">
-                    Déjà un compte ?
-                  </Button>
-                </Link>
+                {user ? (
+                  <>
+                    <Link href="/dashboard" className="sm:flex-1">
+                      <Button className="w-full">
+                        <IconCode size={18} />
+                        Ouvrir mon espace
+                      </Button>
+                    </Link>
+                    <Link href="/pricing" className="sm:flex-1">
+                      <Button variant="secondary" className="w-full">
+                        Voir Developer Pro
+                        <IconArrowRight size={16} />
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/register" className="sm:flex-1">
+                      <Button className="w-full">
+                        <IconCode size={18} />
+                        Commencer gratuitement
+                      </Button>
+                    </Link>
+                    <Link href="/pricing" className="sm:flex-1">
+                      <Button variant="secondary" className="w-full">
+                        Voir Developer Pro
+                        <IconArrowRight size={16} />
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
             <div className="relative z-10 border-t border-white/10 bg-gradient-to-r from-[#0b1020] via-[#141b2f] to-[#1a2744] px-5 py-4 sm:px-8">
@@ -161,9 +178,9 @@ export default function DevelopersPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/register" className="mt-6 block">
+            <Link href={user ? "/dashboard" : "/register"} className="mt-6 block">
               <Button variant="secondary" className="w-full">
-                Créer mon compte
+                {user ? "Mon espace" : "Créer mon compte"}
               </Button>
             </Link>
           </SurfaceCard>
@@ -194,7 +211,7 @@ export default function DevelopersPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/pricing" className="mt-6 block">
+            <Link href={user ? "/pricing/pay" : "/pricing"} className="mt-6 block">
               <Button className="w-full">
                 Passer à Pro
                 <IconArrowRight size={16} />
@@ -211,8 +228,10 @@ export default function DevelopersPage() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-bold text-white">Vos scans au même endroit</h2>
-                <Link href="/dashboard">
-                  <Button variant="secondary">Ouvrir le dashboard</Button>
+                <Link href={user ? "/dashboard" : "/register"}>
+                  <Button variant="secondary">
+                    {user ? "Ouvrir le dashboard" : "Créer un compte"}
+                  </Button>
                 </Link>
               </div>
               <p className="mt-2 text-sm text-white/65">

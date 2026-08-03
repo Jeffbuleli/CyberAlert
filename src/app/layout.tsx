@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteFooter, SiteHeader } from "@/components/layout/site-chrome";
+import { getSessionUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: {
@@ -18,11 +19,16 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSessionUser().catch(() => null);
+  const headerUser = user
+    ? { name: user.name, email: user.email, role: user.role }
+    : null;
+
   return (
     <html lang="fr">
       <body className="antialiased">
-        <SiteHeader />
+        <SiteHeader user={headerUser} />
         <main className="min-h-[70vh]">{children}</main>
         <SiteFooter />
       </body>

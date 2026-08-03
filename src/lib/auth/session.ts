@@ -13,6 +13,7 @@ export type SessionUser = {
   email: string;
   name: string | null;
   role: string;
+  emailVerifiedAt: Date | null;
 };
 
 export function hashToken(raw: string): string {
@@ -54,6 +55,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       email: users.email,
       name: users.name,
       role: users.role,
+      emailVerifiedAt: users.emailVerifiedAt,
       expiresAt: sessions.expiresAt,
     })
     .from(sessions)
@@ -61,7 +63,13 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
     .limit(1);
   if (!row) return null;
-  return { id: row.id, email: row.email, name: row.name, role: row.role };
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    emailVerifiedAt: row.emailVerifiedAt,
+  };
 }
 
 export function requireRole(user: SessionUser, roles: string[]) {

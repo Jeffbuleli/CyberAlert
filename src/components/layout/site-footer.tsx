@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand/logo";
 import { McBuleliPoweredFooter } from "@/components/brand/mcbuleli-powered-footer";
+import { getSessionUser } from "@/lib/auth/session";
 
 const legal = [
   { href: "/privacy", label: "Confidentialité" },
@@ -9,7 +10,9 @@ const legal = [
   { href: "/data-retention", label: "Conservation des données" },
 ];
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const user = await getSessionUser().catch(() => null);
+
   return (
     <footer className="mt-16 border-t border-[var(--ca-border)] bg-[var(--ca-surface)]/90 sm:mt-20">
       <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
@@ -32,9 +35,16 @@ export function SiteFooter() {
             <Link href="/pricing" className="hover:text-[var(--ca-ink)]">
               Tarifs
             </Link>
-            <Link href="/login" className="hover:text-[var(--ca-ink)]">
-              Connexion
-            </Link>
+            {user ? (
+              <>
+                <Link href="/dashboard" className="hover:text-[var(--ca-ink)]">
+                  Mon espace
+                </Link>
+                <Link href="/dashboard/settings" className="hover:text-[var(--ca-ink)]">
+                  Paramètres
+                </Link>
+              </>
+            ) : null}
           </div>
         </div>
 

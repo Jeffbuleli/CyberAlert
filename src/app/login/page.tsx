@@ -1,14 +1,16 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button, Input } from "@/components/ui/primitives";
 import { IconLock } from "@/components/icons";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const sp = useSearchParams();
+  const next = sp.get("next") || "";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,7 +37,11 @@ export default function LoginPage() {
         );
         return;
       }
-      router.push(data.role === "admin" ? "/admin" : "/dashboard");
+      if (next.startsWith("/") && !next.startsWith("//")) {
+        router.push(next);
+      } else {
+        router.push(data.role === "admin" ? "/admin" : "/dashboard");
+      }
     } catch {
       setError("Erreur réseau. Vérifiez votre connexion.");
     } finally {
@@ -72,13 +78,21 @@ export default function LoginPage() {
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <label className="text-sm font-semibold text-[var(--ca-ink)]">Mot de passe</label>
-            <button
-              type="button"
-              className="text-[11px] font-bold text-[var(--ca-accent)] hover:underline"
-              onClick={() => setShowPassword((v) => !v)}
-            >
-              {showPassword ? "Masquer" : "Afficher"}
-            </button>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/forgot-password"
+                className="text-[11px] font-bold text-[var(--ca-accent)] hover:underline"
+              >
+                Oublié ?
+              </Link>
+              <button
+                type="button"
+                className="text-[11px] font-bold text-[var(--ca-accent)] hover:underline"
+                onClick={() => setShowPassword((v) => !v)}
+              >
+                {showPassword ? "Masquer" : "Afficher"}
+              </button>
+            </div>
           </div>
           <Input
             type={showPassword ? "text" : "password"}
@@ -100,5 +114,13 @@ export default function LoginPage() {
         </Button>
       </form>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center text-sm">Chargement…</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -186,11 +186,11 @@ export default function BusinessPage() {
             </div>
             <div className="relative z-10 border-t border-white/10 bg-gradient-to-r from-[#0b1020] via-[#141b2f] to-[#1c2438] px-5 py-4 sm:px-8">
               <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/45">
-                Engagement
+                Méthode
               </p>
               <p className="mt-1.5 text-sm leading-relaxed text-white/80">
-                Preuves d&apos;abord - décisions ensuite. Aucune accusation automatique, aucune
-                exploitation.
+                Audit ciblé, livrables clairs, priorisation des risques - un interlocuteur unique
+                du brief au rapport.
               </p>
             </div>
           </article>
@@ -336,9 +336,6 @@ export default function BusinessPage() {
               <Button type="submit" disabled={loading} className="w-full">
                 {loading ? "Envoi…" : "Envoyer la demande"}
               </Button>
-              <p className="text-center text-[11px] font-medium text-[var(--ca-ink-subtle)]">
-                Réponse humaine - devis selon périmètre - pas d&apos;engagement automatique.
-              </p>
             </form>
           )}
         </article>

@@ -8,7 +8,6 @@ import { Section, Badge, Button, SurfaceCard } from "@/components/ui/primitives"
 import { StatCard } from "@/components/ui/visuals";
 import { NewScanForm } from "@/components/dashboard/new-scan-form";
 import { LogoutButton } from "@/components/dashboard/logout-button";
-import { ChangePasswordForm } from "@/components/dashboard/change-password-form";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -42,6 +41,8 @@ export default async function DashboardPage() {
     low: allFindings.filter((f) => f.severity === "low").length,
   };
 
+  const isPro = plan?.code === "developer_pro";
+
   return (
     <Section className="py-10 sm:py-14">
       <SurfaceCard variant="panther" className="overflow-hidden p-6 sm:p-7">
@@ -64,9 +65,14 @@ export default async function DashboardPage() {
                 <Button variant="secondary">Admin</Button>
               </Link>
             ) : null}
-            <Link href="/pricing">
-              <Button variant="secondary">Passer à Pro</Button>
+            <Link href="/dashboard/settings">
+              <Button variant="secondary">Paramètres</Button>
             </Link>
+            {!isPro ? (
+              <Link href="/pricing/pay">
+                <Button variant="secondary">Passer à Pro</Button>
+              </Link>
+            ) : null}
             <LogoutButton />
           </div>
         </div>
@@ -88,7 +94,7 @@ export default async function DashboardPage() {
               <p className="mt-1 text-sm text-[var(--ca-ink-muted)]">
                 Continuez à analyser et améliorer la sécurité de vos applications.
               </p>
-              <Link href="/pricing" className="mt-4 inline-block">
+              <Link href="/pricing/pay" className="mt-4 inline-block">
                 <Button>Passer à Developer Pro</Button>
               </Link>
             </SurfaceCard>
@@ -142,11 +148,6 @@ export default async function DashboardPage() {
             </li>
           ))}
         </ul>
-      </div>
-
-      <div className="mt-10 max-w-xl">
-        <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Sécurité du compte</h2>
-        <ChangePasswordForm />
       </div>
     </Section>
   );

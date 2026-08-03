@@ -139,7 +139,7 @@ export function LinkCheckResultView({
               "Aperçu indisponible pour le moment. Les signaux techniques ci-dessous restent la base de la vérification."}
           </p>
           <p className="mt-3 text-[11px] font-medium text-[var(--ca-ink-subtle)]">
-            Aperçu informatif - ce n&apos;est pas une preuve de sécurité ni une garantie.
+            Lecture assistée - les signaux techniques restent la référence.
           </p>
         </div>
       </SurfaceCard>

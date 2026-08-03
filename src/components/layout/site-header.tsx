@@ -13,9 +13,16 @@ const links = [
   { href: "/business", label: "Entreprises" },
 ];
 
-export function SiteHeader() {
+export type HeaderUser = {
+  name: string | null;
+  email: string;
+  role: string;
+};
+
+export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const signedIn = Boolean(user);
 
   useEffect(() => {
     setOpen(false);
@@ -29,6 +36,8 @@ export function SiteHeader() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
+
+  const firstName = user?.name?.trim() || user?.email.split("@")[0] || "Compte";
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--ca-border)]/70 bg-[rgba(233,238,245,0.88)] backdrop-blur-xl">
@@ -68,13 +77,22 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-[var(--ca-panther)] px-3.5 py-2.5 text-sm font-bold text-white shadow-[0_10px_24px_-14px_rgba(11,16,32,0.85)] transition hover:bg-[#141b2f] active:scale-[0.98] sm:px-4"
-          >
-            <IconLock size={15} className="opacity-90" />
-            Connexion
-          </Link>
+          {signedIn ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex max-w-[10.5rem] items-center justify-center gap-1.5 rounded-2xl bg-[var(--ca-accent)] px-3.5 py-2.5 text-sm font-bold text-white shadow-[0_10px_24px_-14px_rgba(31,79,216,0.65)] transition hover:bg-[#1a45c4] active:scale-[0.98] sm:max-w-none sm:px-4"
+            >
+              <span className="truncate">{firstName}</span>
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-[var(--ca-accent)] px-3.5 py-2.5 text-sm font-bold text-white shadow-[0_10px_24px_-14px_rgba(31,79,216,0.65)] transition hover:bg-[#1a45c4] active:scale-[0.98] sm:px-4"
+            >
+              <IconLock size={15} className="opacity-90" />
+              Connexion
+            </Link>
+          )}
 
           <button
             type="button"
@@ -122,6 +140,29 @@ export function SiteHeader() {
             >
               Tarifs
             </Link>
+            {signedIn ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="rounded-2xl px-4 py-3 text-sm font-semibold text-[var(--ca-ink)] hover:bg-[var(--ca-surface-2)]"
+                >
+                  Mon espace
+                </Link>
+                <Link
+                  href="/dashboard/settings"
+                  className="rounded-2xl px-4 py-3 text-sm font-semibold text-[var(--ca-ink)] hover:bg-[var(--ca-surface-2)]"
+                >
+                  Paramètres
+                </Link>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-2xl px-4 py-3 text-sm font-semibold text-[var(--ca-accent)] hover:bg-[var(--ca-accent-soft)]"
+              >
+                Connexion
+              </Link>
+            )}
           </nav>
         </div>
       ) : null}

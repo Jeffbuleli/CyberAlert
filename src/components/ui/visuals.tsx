@@ -155,32 +155,23 @@ export function RiskRadar({
 }
 
 /** Polished severity histogram from link signals (hackathon-pass inspired bars). */
-export function SignalHistogram({ signals }: { signals: LinkSignal[] }) {
-  const buckets: { key: Tone; label: string; count: number }[] = [
-    { key: "high", label: "Élevé", count: 0 },
-    { key: "medium", label: "Moyen", count: 0 },
-    { key: "low", label: "Faible", count: 0 },
-    { key: "info", label: "Info", count: 0 },
-  ];
-
-  for (const s of signals) {
-    if (s.severity === "high") buckets[0].count += 1;
-    else if (s.severity === "medium") buckets[1].count += 1;
-    else if (s.severity === "low") buckets[2].count += 1;
-    else buckets[3].count += 1;
-  }
-
+function SeverityBars({
+  title,
+  totalLabel,
+  buckets,
+}: {
+  title: string;
+  totalLabel: string;
+  buckets: { key: Tone; label: string; count: number }[];
+}) {
   const max = Math.max(1, ...buckets.map((b) => b.count));
-
   return (
     <div className="rounded-[22px] border border-[var(--ca-border)] bg-white/80 p-4 shadow-[var(--ca-shadow-soft)] backdrop-blur-sm">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[var(--ca-accent)]">
-          Répartition des signaux
+          {title}
         </p>
-        <span className="text-[11px] font-semibold text-[var(--ca-ink-subtle)]">
-          {signals.length} {signals.length === 1 ? "signal" : "signaux"}
-        </span>
+        <span className="text-[11px] font-semibold text-[var(--ca-ink-subtle)]">{totalLabel}</span>
       </div>
       <div className="mt-4 flex h-36 items-end gap-3">
         {buckets.map((b, i) => {
@@ -210,6 +201,59 @@ export function SignalHistogram({ signals }: { signals: LinkSignal[] }) {
         })}
       </div>
     </div>
+  );
+}
+
+export function SignalHistogram({ signals }: { signals: LinkSignal[] }) {
+  const buckets: { key: Tone; label: string; count: number }[] = [
+    { key: "high", label: "Élevé", count: 0 },
+    { key: "medium", label: "Moyen", count: 0 },
+    { key: "low", label: "Faible", count: 0 },
+    { key: "info", label: "Info", count: 0 },
+  ];
+
+  for (const s of signals) {
+    if (s.severity === "high") buckets[0].count += 1;
+    else if (s.severity === "medium") buckets[1].count += 1;
+    else if (s.severity === "low") buckets[2].count += 1;
+    else buckets[3].count += 1;
+  }
+
+  return (
+    <SeverityBars
+      title="Répartition des signaux"
+      totalLabel={`${signals.length} ${signals.length === 1 ? "signal" : "signaux"}`}
+      buckets={buckets}
+    />
+  );
+}
+
+/** Histogram for developer scan findings (critical → low). */
+export function FindingHistogram({
+  findings,
+}: {
+  findings: { severity: string }[];
+}) {
+  const buckets: { key: Tone; label: string; count: number }[] = [
+    { key: "critical", label: "Critique", count: 0 },
+    { key: "high", label: "Élevé", count: 0 },
+    { key: "medium", label: "Moyen", count: 0 },
+    { key: "low", label: "Faible", count: 0 },
+  ];
+
+  for (const f of findings) {
+    if (f.severity === "critical") buckets[0].count += 1;
+    else if (f.severity === "high") buckets[1].count += 1;
+    else if (f.severity === "medium") buckets[2].count += 1;
+    else buckets[3].count += 1;
+  }
+
+  return (
+    <SeverityBars
+      title="Répartition des findings"
+      totalLabel={`${findings.length} ${findings.length === 1 ? "finding" : "findings"}`}
+      buckets={buckets}
+    />
   );
 }
 

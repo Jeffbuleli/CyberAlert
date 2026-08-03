@@ -120,6 +120,19 @@ export async function POST_REGISTER(req: Request) {
     });
   }
 
+  try {
+    const { sendEmailVerification } = await import("@/lib/auth/tokens");
+    const { sendAuthEmail, appBaseUrl } = await import("@/lib/email/send");
+    await sendEmailVerification(user.id, user.email);
+    await sendAuthEmail({
+      to: user.email,
+      kind: "welcome",
+      actionUrl: `${appBaseUrl()}/dashboard`,
+    });
+  } catch (e) {
+    console.error("[auth] welcome/verify email failed", e);
+  }
+
   const raw = await createSession(user.id);
   await setSessionCookie(raw);
   return Response.json({ ok: true, role: user.role });
