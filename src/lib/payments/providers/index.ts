@@ -1,15 +1,20 @@
+import { getPawapayConfig } from "@/lib/env";
+
 export type PaymentInitInput = {
   amountLocal: string;
-  currency: string;
+  currency: "USD" | "CDF";
   phone: string;
   depositId: string;
-  correspondence?: string;
+  /** PawaPay provider id e.g. AIRTEL_COD — auto-detected from phone if omitted. */
+  provider?: string;
+  customerMessage?: string;
 };
 
 export type PaymentInitResult = {
   accepted: boolean;
   providerRef: string;
   rawStatus?: string;
+  failureMessage?: string;
 };
 
 export type PaymentStatus = "COMPLETED" | "FAILED" | "PROCESSING";
@@ -24,7 +29,8 @@ export interface PaymentProvider {
   ): Promise<{ ok: boolean; providerRef?: string; status?: PaymentStatus }>;
 }
 
-function formatPawapayAmount(amount: string | number): string {
+/** Same amount formatting rules as McBuleli / PawaPay v2. */
+export function formatPawapayAmount(amount: string | number): string {
   const n = typeof amount === "number" ? amount : Number(String(amount).trim());
   if (!Number.isFinite(n) || n < 0) throw new Error("invalid_amount");
   if (n === 0) return "0";
@@ -33,12 +39,71 @@ function formatPawapayAmount(amount: string | number): string {
   return s;
 }
 
-function normalizePhone(input: string): string {
-  const digits = input.replace(/\D/g, "");
+export function normalizePhone(input: string): string {
+  let digits = input.replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
   if (digits.startsWith("243")) return digits;
   if (digits.startsWith("0") && digits.length === 10) return `243${digits.slice(1)}`;
   if (digits.length === 9) return `243${digits}`;
   return digits;
+}
+
+const PREFIX_MAP: { prefix: string; method: string }[] = [
+  { prefix: "81", method: "mpesa" },
+  { prefix: "82", method: "mpesa" },
+  { prefix: "83", method: "mpesa" },
+  { prefix: "86", method: "mpesa" },
+  { prefix: "80", method: "orange" },
+  { prefix: "84", method: "orange" },
+  { prefix: "85", method: "orange" },
+  { prefix: "89", method: "orange" },
+  { prefix: "97", method: "airtel" },
+  { prefix: "98", method: "airtel" },
+  { prefix: "99", method: "airtel" },
+  { prefix: "96", method: "airtel" },
+  { prefix: "90", method: "africell" },
+  { prefix: "91", method: "africell" },
+].sort((a, b) => b.prefix.length - a.prefix.length);
+
+export function detectMomoMethod(phone: string): string | null {
+  const local = normalizePhone(phone).replace(/^243/, "");
+  for (const row of PREFIX_MAP) {
+    if (local.startsWith(row.prefix)) return row.method;
+  }
+  return null;
+}
+
+export function toPawapayProviderId(method: string): string {
+  const m = method.trim().toLowerCase();
+  if (m === "airtel" || m === "airtel_cod") return "AIRTEL_COD";
+  if (m === "orange" || m === "orange_cod") return "ORANGE_COD";
+  if (m === "mpesa" || m === "vodacom_mpesa_cod") return "VODACOM_MPESA_COD";
+  const u = method.trim().toUpperCase();
+  if (u === "AIRTEL_COD" || u === "ORANGE_COD" || u === "VODACOM_MPESA_COD") return u;
+  return method.trim();
+}
+
+function isAccepted(status: string | undefined): boolean {
+  const s = String(status ?? "").toUpperCase();
+  return s === "ACCEPTED" || s === "DUPLICATE_IGNORED";
+}
+
+function mapStatus(status: string | undefined): PaymentStatus {
+  const s = String(status ?? "").toUpperCase();
+  if (s === "COMPLETED") return "COMPLETED";
+  if (s === "FAILED" || s === "REJECTED") return "FAILED";
+  return "PROCESSING";
+}
+
+function unwrapStatus(remote: {
+  status?: string;
+  data?: { status?: string; depositId?: string };
+  depositId?: string;
+}): { status?: string; depositId?: string } | null {
+  const top = String(remote.status ?? "").toUpperCase();
+  if (top === "NOT_FOUND") return null;
+  if (top === "FOUND" && remote.data) return remote.data;
+  return remote;
 }
 
 export class PawaPayProvider implements PaymentProvider {
@@ -53,55 +118,94 @@ export class PawaPayProvider implements PaymentProvider {
     },
   ) {}
 
-  async createDeposit(input: PaymentInitInput): Promise<PaymentInitResult> {
-    if (!this.config.token) {
-      throw new Error("pawapay_not_configured");
-    }
-    const res = await fetch(`${this.config.baseUrl.replace(/\/$/, "")}/deposits`, {
-      method: "POST",
+  private async fetchJson(method: "GET" | "POST", path: string, body?: Record<string, unknown>) {
+    const base = this.config.baseUrl.replace(/\/+$/, "");
+    const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+    const res = await fetch(url, {
+      method,
       headers: {
         Authorization: `Bearer ${this.config.token}`,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      body: JSON.stringify({
-        depositId: input.depositId,
-        amount: formatPawapayAmount(input.amountLocal),
-        currency: input.currency,
-        payer: {
-          type: "MMO",
-          accountDetails: {
-            phoneNumber: normalizePhone(input.phone),
-          },
-        },
-        correspondent: input.correspondence,
-      }),
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
     });
-    const data = (await res.json().catch(() => ({}))) as { status?: string; depositId?: string };
-    const status = String(data.status || "").toUpperCase();
-    const accepted = status === "ACCEPTED" || status === "DUPLICATE_IGNORED" || res.ok;
+    const text = await res.text();
+    let json: Record<string, unknown> = {};
+    try {
+      json = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+    } catch {
+      throw new Error(`pawapay_invalid_json:${res.status}`);
+    }
+    return { res, json };
+  }
+
+  async createDeposit(input: PaymentInitInput): Promise<PaymentInitResult> {
+    if (!this.config.token.trim()) {
+      throw new Error("pawapay_not_configured");
+    }
+
+    const phone = normalizePhone(input.phone);
+    const method = detectMomoMethod(phone);
+    if (method === "africell") {
+      return {
+        accepted: false,
+        providerRef: input.depositId,
+        failureMessage:
+          "Africell / Afrimoney n'est pas supporté. Utilisez Orange Money, M-Pesa ou Airtel Money.",
+      };
+    }
+    const providerId = toPawapayProviderId(
+      input.provider || method || "orange",
+    );
+
+    const { json } = await this.fetchJson("POST", "/v2/deposits", {
+      depositId: input.depositId,
+      amount: formatPawapayAmount(input.amountLocal),
+      currency: input.currency,
+      payer: {
+        type: "MMO",
+        accountDetails: {
+          phoneNumber: phone,
+          provider: providerId,
+        },
+      },
+      customerMessage: (input.customerMessage || "Cyber Alert Pro").slice(0, 22),
+    });
+
+    const status = String(json.status || "");
+    const failure =
+      json.failureReason && typeof json.failureReason === "object"
+        ? String(
+            (json.failureReason as { failureMessage?: string }).failureMessage ||
+              (json.failureReason as { failureCode?: string }).failureCode ||
+              "",
+          )
+        : "";
+
     return {
-      accepted,
-      providerRef: data.depositId || input.depositId,
-      rawStatus: status,
+      accepted: isAccepted(status),
+      providerRef: String(json.depositId || input.depositId),
+      rawStatus: status.toUpperCase(),
+      failureMessage: failure || undefined,
     };
   }
 
   async lookupStatus(providerRef: string): Promise<PaymentStatus> {
-    if (!this.config.token) return "PROCESSING";
-    const res = await fetch(
-      `${this.config.baseUrl.replace(/\/$/, "")}/deposits/${encodeURIComponent(providerRef)}`,
-      {
-        headers: { Authorization: `Bearer ${this.config.token}` },
-      },
-    );
-    const remote = (await res.json().catch(() => ({}))) as {
-      status?: string;
-      data?: { status?: string };
-    };
-    const s = String(remote.data?.status || remote.status || "").toUpperCase();
-    if (s === "COMPLETED") return "COMPLETED";
-    if (s === "FAILED" || s === "REJECTED") return "FAILED";
-    return "PROCESSING";
+    if (!this.config.token.trim()) return "PROCESSING";
+    try {
+      const { json } = await this.fetchJson(
+        "GET",
+        `/v2/deposits/${encodeURIComponent(providerRef)}`,
+      );
+      const payment = unwrapStatus(
+        json as { status?: string; data?: { status?: string; depositId?: string }; depositId?: string },
+      );
+      return mapStatus(payment?.status);
+    } catch {
+      return "PROCESSING";
+    }
   }
 
   async verifyWebhook(req: Request, body: unknown) {
@@ -115,29 +219,29 @@ export class PawaPayProvider implements PaymentProvider {
       return { ok: false };
     }
 
-    const secret = req.headers.get("x-pawapay-secret") || req.headers.get("x-callback-secret");
+    const secret =
+      req.headers.get("x-pawapay-secret") ||
+      req.headers.get("x-callback-secret") ||
+      req.headers.get("x-pawapay-callback-secret");
     if (this.config.callbackSecret && secret !== this.config.callbackSecret) {
-      return { ok: false };
+      const auth = req.headers.get("authorization") || "";
+      if (auth !== `Bearer ${this.config.callbackSecret}`) {
+        return { ok: false };
+      }
     }
 
-    const b = body as { depositId?: string; status?: string; data?: { status?: string; depositId?: string } };
+    const b = body as {
+      depositId?: string;
+      status?: string;
+      data?: { status?: string; depositId?: string };
+    };
     const providerRef = b.depositId || b.data?.depositId;
     const raw = String(b.data?.status || b.status || "").toUpperCase();
-    let status: PaymentStatus = "PROCESSING";
-    if (raw === "COMPLETED") status = "COMPLETED";
-    if (raw === "FAILED" || raw === "REJECTED") status = "FAILED";
-    return { ok: Boolean(providerRef), providerRef, status };
+    return { ok: Boolean(providerRef), providerRef, status: mapStatus(raw) };
   }
 }
 
 export function getPaymentProvider(): PaymentProvider {
-  return new PawaPayProvider({
-    baseUrl: process.env.PAWAPAY_API_BASE_URL || "https://api.sandbox.pawapay.io",
-    token: process.env.PAWAPAY_API_TOKEN || "",
-    callbackSecret: process.env.PAWAPAY_CALLBACK_SECRET || "",
-    ipAllowlist: (process.env.PAWAPAY_CALLBACK_IP_ALLOWLIST || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
-  });
+  const cfg = getPawapayConfig();
+  return new PawaPayProvider(cfg);
 }

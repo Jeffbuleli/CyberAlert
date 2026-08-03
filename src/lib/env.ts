@@ -24,11 +24,23 @@ export function getAiGatewayConfig() {
 }
 
 export function getPawapayConfig() {
+  const env = process.env.PAWAPAY_ENV?.trim().toLowerCase();
+  const sandbox = env === "sandbox" || env === "test";
+  const override = process.env.PAWAPAY_API_BASE_URL?.trim();
+  const baseUrl = (override ||
+    (sandbox ? "https://api.sandbox.pawapay.io" : "https://api.pawapay.io")).replace(
+    /\/+$/,
+    "",
+  );
+  const ipRaw =
+    process.env.PAWAPAY_CALLBACK_IP_ALLOWLIST?.trim() ||
+    process.env.PAWAPAY_CALLBACK_IPS?.trim() ||
+    "";
   return {
-    baseUrl: process.env.PAWAPAY_API_BASE_URL?.trim() || "https://api.sandbox.pawapay.io",
+    baseUrl,
     token: process.env.PAWAPAY_API_TOKEN?.trim() || "",
     callbackSecret: process.env.PAWAPAY_CALLBACK_SECRET?.trim() || "",
-    ipAllowlist: (process.env.PAWAPAY_CALLBACK_IP_ALLOWLIST || "")
+    ipAllowlist: ipRaw
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),

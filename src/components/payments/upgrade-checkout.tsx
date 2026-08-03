@@ -73,6 +73,10 @@ export function UpgradeCheckout({
             <dt className="text-[var(--ca-ink-muted)]">Réseaux</dt>
             <dd className="font-semibold text-[var(--ca-ink)]">Orange · M-Pesa · Airtel</dd>
           </div>
+          <div className="mt-2 flex justify-between gap-3">
+            <dt className="text-[var(--ca-ink-muted)]">Devise</dt>
+            <dd className="font-semibold text-[var(--ca-ink)]">USD (Mobile Money)</dd>
+          </div>
         </dl>
         <div className="flex flex-wrap gap-2">
           <MetaChip label="Confirmation sur téléphone" />
