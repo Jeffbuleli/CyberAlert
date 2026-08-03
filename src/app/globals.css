@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --ca-bg: #f3f6f8;
+  --ca-surface: #ffffff;
+  --ca-surface-2: #e8eef2;
+  --ca-ink: #0c1b2a;
+  --ca-ink-muted: #4a5d6e;
+  --ca-ink-subtle: #7a8b9a;
+  --ca-border: #d5dee6;
+  --ca-accent: #0e6b8a;
+  --ca-accent-hover: #0a5570;
+  --ca-accent-soft: #d4eef5;
+  --ca-low: #1a7f4b;
+  --ca-low-soft: #e4f6ec;
+  --ca-caution: #b86a08;
+  --ca-caution-soft: #fff1dc;
+  --ca-high: #c0392b;
+  --ca-high-soft: #fde8e6;
+  --ca-hero-glow: radial-gradient(1200px 500px at 50% -10%, #c8e7f0 0%, transparent 60%),
+    radial-gradient(800px 400px at 100% 20%, #dce8f0 0%, transparent 50%),
+    linear-gradient(180deg, #eef4f7 0%, #f3f6f8 45%, #f3f6f8 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Poppins", system-ui, sans-serif;
+  color: var(--ca-ink);
+  background: var(--ca-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--ca-accent-soft);
+}
