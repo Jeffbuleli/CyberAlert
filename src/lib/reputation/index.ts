@@ -13,10 +13,9 @@ export class InternalReputationProvider implements ReputationProvider {
 
   async lookup(domain: string) {
     return {
-      score: null,
+      score: null as number | null,
       labels: ["unknown"],
       source: this.id,
-      domain,
     };
   }
 }
