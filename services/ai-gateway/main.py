@@ -36,6 +36,7 @@ class ExplainRequest(BaseModel):
 
 
 class ExplainResponse(BaseModel):
+    overview: str
     summary: str
     recommendation: str
     source_signal_ids: List[str]
@@ -51,39 +52,40 @@ def require_auth(authorization: Optional[str] = Header(default=None)) -> None:
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
-DISCLAIMER = (
-    "Cette analyse ne garantit pas qu'un site est sûr à 100 %. "
-    "Restez prudent avant de fournir des informations personnelles, bancaires ou des mots de passe."
-)
+DISCLAIMER = "Cette analyse ne garantit pas qu'un site est sûr à 100 %. Restez prudent."
 
 
 def template_explain(req: ExplainRequest) -> ExplainResponse:
     ids = [s.id for s in req.signals]
+    host = req.domain or "ce site"
+    if host.lower().replace("www.", "") in ("mcbuleli.org",) or host.lower().endswith(".mcbuleli.org"):
+        overview = "McBuleli.org : plateforme fintech / P2P basée à Kinshasa (RDC)."
+    else:
+        overview = f"Domaine « {host} » : aperçu limité. Voir les signaux techniques."
     if req.risk_level == "low":
         return ExplainResponse(
-            summary="Aucun signal important indiquant une fraude n'a été détecté parmi les contrôles effectués.",
+            overview=overview,
+            summary="Aucun signal de fraude important détecté dans les contrôles effectués.",
             recommendation=DISCLAIMER,
             source_signal_ids=ids,
         )
     if req.risk_level == "caution":
-        titles = [s.title for s in req.signals if s.severity != "info"][:5]
+        titles = [s.title for s in req.signals if s.severity != "info"][:3]
         extra = f" : {', '.join(titles)}." if titles else "."
         return ExplainResponse(
-            summary=f"Certains éléments nécessitent votre attention{extra}",
+            overview=overview,
+            summary=f"Points d'attention{extra}",
             recommendation=(
-                "Ne saisissez pas vos informations sensibles tant que vous n'avez pas confirmé "
-                f"l'identité du site par un canal officiel. {DISCLAIMER}"
+                "Ne saisissez pas d'infos sensibles avant de confirmer le site via un canal officiel. "
+                + DISCLAIMER
             ),
             source_signal_ids=ids,
         )
     return ExplainResponse(
-        summary=(
-            "Plusieurs indicateurs correspondent à des caractéristiques fréquemment observées "
-            "sur des sites frauduleux."
-        ),
+        overview=overview,
+        summary="Plusieurs signaux rappellent des sites frauduleux. Prudence maximale.",
         recommendation=(
-            "Ne saisissez pas votre mot de passe, vos informations bancaires ou vos données "
-            f"personnelles sur ce site. {DISCLAIMER}"
+            "N'entrez ni mot de passe, ni données bancaires, ni infos personnelles. " + DISCLAIMER
         ),
         source_signal_ids=ids,
     )
@@ -95,11 +97,11 @@ async def openai_explain(req: ExplainRequest) -> Optional[ExplainResponse]:
     allowed = {s.id for s in req.signals}
     system = (
         "Tu es McBuleli AI pour Cyber Alert DRC. "
-        "Tu EXPLIQUES uniquement les signaux fournis. "
-        "Tu n'inventes JAMAIS de vulnérabilité ni de preuve. "
-        "Réponds en JSON avec keys: summary, recommendation, source_signal_ids. "
-        "source_signal_ids doit être un sous-ensemble des ids fournis. "
-        "Langue: français simple, grand public."
+        "Réponses BRÈVES mais claires. "
+        "JSON: overview, summary, recommendation, source_signal_ids. "
+        "overview: 1 phrase. summary: 1-2 phrases. recommendation: 1 phrase + prudence. "
+        "Ex: McBuleli.org = fintech/P2P à Kinshasa. "
+        "N'invente jamais de vulnérabilité. Jamais 100% sûr. Français simple."
     )
     user = {
         "risk_level": req.risk_level,
@@ -111,7 +113,7 @@ async def openai_explain(req: ExplainRequest) -> Optional[ExplainResponse]:
     }
     payload: Dict[str, Any] = {
         "model": OPENAI_MODEL,
-        "temperature": 0.1,
+        "temperature": 0.2,
         "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": system},
@@ -137,7 +139,11 @@ async def openai_explain(req: ExplainRequest) -> Optional[ExplainResponse]:
     source_ids = [i for i in parsed.get("source_signal_ids", []) if i in allowed]
     if not parsed.get("summary") or not parsed.get("recommendation"):
         return None
+    overview = (parsed.get("overview") or parsed.get("site_overview") or "").strip()
+    if not overview:
+        overview = template_explain(req).overview
     return ExplainResponse(
+        overview=overview,
         summary=parsed["summary"],
         recommendation=parsed["recommendation"],
         source_signal_ids=source_ids or list(allowed),
@@ -168,7 +174,7 @@ async def prioritize(body: Dict[str, Any], _: None = Depends(require_auth)) -> D
     )
     return {
         "ordered_ids": [f.get("id") for f in sorted_f if f.get("id")],
-        "rationale": "Priorisation par sévérité puis confiance — données sources uniquement.",
+        "rationale": "Priorisation par sévérité puis confiance - données sources uniquement.",
     }
 
 

@@ -55,6 +55,13 @@ export default async function AdminPage() {
     .orderBy(desc(siteReports.createdAt))
     .limit(20);
 
+  const recentReports = await db
+    .select()
+    .from(siteReports)
+    .orderBy(desc(siteReports.updatedAt))
+    .limit(30)
+    .then((rows) => rows.filter((r) => r.moderationStatus !== "pending").slice(0, 15));
+
   const plans = await db.select().from(pricingPlans).orderBy(pricingPlans.sortOrder);
   const recentPayments = await db
     .select()
@@ -94,10 +101,30 @@ export default async function AdminPage() {
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
-        <div>
-          <h2 className="font-semibold">Signalements à modérer</h2>
-          <ReportModeration reports={pendingReports} />
-        </div>
+        <SurfaceCard variant="lift" className="p-5 sm:p-6">
+          <ReportModeration
+            pending={pendingReports.map((r) => ({
+              id: r.id,
+              url: r.url,
+              category: r.category,
+              comment: r.comment,
+              source: r.source,
+              moderationStatus: r.moderationStatus,
+              moderatorNote: r.moderatorNote,
+              createdAt: r.createdAt,
+            }))}
+            recent={recentReports.map((r) => ({
+              id: r.id,
+              url: r.url,
+              category: r.category,
+              comment: r.comment,
+              source: r.source,
+              moderationStatus: r.moderationStatus,
+              moderatorNote: r.moderatorNote,
+              createdAt: r.createdAt,
+            }))}
+          />
+        </SurfaceCard>
         <div>
           <h2 className="font-semibold">Pricing</h2>
           <PricingEditor

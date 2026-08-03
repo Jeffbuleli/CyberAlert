@@ -23,11 +23,14 @@ export default async function CheckResultPage({ params }: Props) {
       <LinkCheckResultView
         id={row.id}
         url={row.urlNormalized}
+        domain={row.domain}
         riskLevel={row.riskLevel as RiskLevel}
         score={row.score}
+        overview={row.aiOverview}
         summary={row.aiSummary || ""}
         recommendation={row.aiRecommendation || ""}
         signals={(row.signals || []) as LinkSignal[]}
+        aiProvider={(row.aiProvider as "template" | "mcbuleli-ai" | null) || null}
       />
     </Section>
   );

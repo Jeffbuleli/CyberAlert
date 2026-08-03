@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // Never trust webhook alone — confirm with provider lookup
+  // Never trust webhook alone - confirm with provider lookup
   const status = await provider.lookupStatus(verified.providerRef);
   const db = getDb();
   const [payment] = await db

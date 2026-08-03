@@ -8,6 +8,7 @@ import { Section, Badge, Button, SurfaceCard } from "@/components/ui/primitives"
 import { StatCard } from "@/components/ui/visuals";
 import { NewScanForm } from "@/components/dashboard/new-scan-form";
 import { LogoutButton } from "@/components/dashboard/logout-button";
+import { ChangePasswordForm } from "@/components/dashboard/change-password-form";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/50">
-              Security Overview
+              Espace développeur
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
               Bonjour, {user.name || user.email.split("@")[0]}
@@ -72,10 +73,10 @@ export default async function DashboardPage() {
       </SurfaceCard>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Critical" value={counts.critical} tone="critical" hint="À traiter d'abord" />
-        <StatCard label="High" value={counts.high} tone="high" hint="Priorité haute" />
-        <StatCard label="Medium" value={counts.medium} tone="medium" hint="Planifier" />
-        <StatCard label="Low" value={counts.low} tone="low" hint="Surveillance" />
+        <StatCard label="Critique" value={counts.critical} tone="critical" hint="À traiter d'abord" />
+        <StatCard label="Élevé" value={counts.high} tone="high" hint="Priorité haute" />
+        <StatCard label="Moyen" value={counts.medium} tone="medium" hint="Planifier" />
+        <StatCard label="Faible" value={counts.low} tone="low" hint="Surveillance" />
       </div>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
@@ -103,7 +104,7 @@ export default async function DashboardPage() {
         </div>
 
         <div>
-          <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Projects</h2>
+          <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Projets</h2>
           <ul className="space-y-2">
             {userProjects.length === 0 ? (
               <li>
@@ -128,7 +129,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mt-10">
-        <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Recent scans</h2>
+        <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Scans récents</h2>
         <ul className="space-y-2">
           {recentScans.map((s) => (
             <li key={s.id}>
@@ -141,6 +142,11 @@ export default async function DashboardPage() {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="mt-10 max-w-xl">
+        <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Sécurité du compte</h2>
+        <ChangePasswordForm />
       </div>
     </Section>
   );

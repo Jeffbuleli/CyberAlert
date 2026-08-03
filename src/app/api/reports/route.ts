@@ -5,7 +5,6 @@ import {
   checkRateLimit,
   clientIpFromRequest,
   hashIp,
-  rateLimitedResponse,
 } from "@/lib/rate-limit";
 import { getRateLimit } from "@/lib/env";
 
@@ -29,7 +28,16 @@ const schema = z.object({
 export async function POST(req: Request) {
   const ip = clientIpFromRequest(req);
   const rl = checkRateLimit(`report:${ip}`, getRateLimit("report"), 60_000);
-  if (!rl.ok) return rateLimitedResponse(rl.retryAfterMs);
+  if (!rl.ok) {
+    return Response.json(
+      {
+        error: "rate_limited",
+        message: "Trop de signalements. Réessayez dans une minute.",
+        retryAfterMs: rl.retryAfterMs,
+      },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    );
+  }
 
   const json = await req.json().catch(() => null);
   const parsed = schema.safeParse(json);

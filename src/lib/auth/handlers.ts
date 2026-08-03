@@ -8,6 +8,7 @@ import {
   hashPassword,
   verifyPassword,
 } from "@/lib/auth/session";
+import { checkPasswordStrength, passwordSchemaRefine } from "@/lib/auth/password-policy";
 import { checkRateLimit, clientIpFromRequest, rateLimitedResponse } from "@/lib/rate-limit";
 
 const loginSchema = z.object({
@@ -35,7 +36,15 @@ async function setSessionCookie(raw: string) {
 export async function POST_LOGIN(req: Request) {
   const ip = clientIpFromRequest(req);
   const rl = checkRateLimit(`login:${ip}`, 5, 60_000);
-  if (!rl.ok) return rateLimitedResponse(rl.retryAfterMs);
+  if (!rl.ok) {
+    return Response.json(
+      {
+        error: "rate_limited",
+        message: "Trop de tentatives de connexion. Réessayez dans une minute.",
+      },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    );
+  }
 
   const parsed = loginSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -55,11 +64,29 @@ export async function POST_LOGIN(req: Request) {
 export async function POST_REGISTER(req: Request) {
   const ip = clientIpFromRequest(req);
   const rl = checkRateLimit(`register:${ip}`, 3, 600_000);
-  if (!rl.ok) return rateLimitedResponse(rl.retryAfterMs);
+  if (!rl.ok) {
+    return Response.json(
+      {
+        error: "rate_limited",
+        message: "Trop d'inscriptions depuis cette adresse. Réessayez plus tard.",
+      },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    );
+  }
 
   const parsed = registerSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return Response.json({ error: "invalid", message: "Données invalides." }, { status: 400 });
+  }
+  if (!passwordSchemaRefine(parsed.data.password)) {
+    const check = checkPasswordStrength(parsed.data.password);
+    return Response.json(
+      {
+        error: "weak_password",
+        message: check.message || "Mot de passe trop faible (8+ caractères, lettre + chiffre).",
+      },
+      { status: 400 },
+    );
   }
   const db = getDb();
   const email = parsed.data.email.toLowerCase().trim();

@@ -15,7 +15,7 @@ export interface SecurityScanProvider {
  * Internal non-intrusive scanner: reuses link analysis + passive HTTP headers checks.
  * Never performs exploitation. Requires explicit scope for non-owned targets in product flows.
  *
- * Deep analysis (HackerAI / future providers) plugs in via SecurityScanProvider —
+ * Deep analysis (HackerAI / future providers) plugs in via SecurityScanProvider -
  * do NOT couple the app directly to HackerAI.
  */
 export class InternalScannerProvider implements SecurityScanProvider {
@@ -69,7 +69,7 @@ export class InternalScannerProvider implements SecurityScanProvider {
   }
 }
 
-/** Stub — activate when HackerAI API contract is available. */
+/** Stub - activate when HackerAI API contract is available. */
 export class HackerAIProvider implements SecurityScanProvider {
   id = "hackerai";
 

@@ -172,7 +172,7 @@ async function resolveAndAssertPublic(hostname: string): Promise<string[]> {
   }
 
   if (addresses.length === 0) {
-    // No DNS — still allow heuristic-only analysis without fetch
+    // No DNS - still allow heuristic-only analysis without fetch
     return [];
   }
   for (const ip of addresses) {

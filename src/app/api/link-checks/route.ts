@@ -47,9 +47,11 @@ export async function POST(req: Request) {
       riskLevel: analysis.riskLevel,
       score: analysis.score,
       signals: analysis.signals,
+      aiOverview: ai.overview,
       aiSummary: ai.summary,
       aiRecommendation: ai.recommendation,
       aiSourceSignalIds: ai.sourceSignalIds,
+      aiProvider: ai.provider,
       ipHash: hashIp(ip),
       userAgent: req.headers.get("user-agent")?.slice(0, 400) ?? null,
     })

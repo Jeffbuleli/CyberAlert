@@ -17,6 +17,8 @@ export async function GET(_req: Request, { params }: Params) {
     signals: row.signals,
     summary: row.aiSummary,
     recommendation: row.aiRecommendation,
+    overview: row.aiOverview,
+    provider: row.aiProvider,
     createdAt: row.createdAt,
   });
 }

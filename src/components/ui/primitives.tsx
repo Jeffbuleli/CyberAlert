@@ -1,4 +1,9 @@
-import { type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import {
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from "react";
 
 export function Button({
   variant = "primary",
@@ -91,4 +96,32 @@ export function SurfaceCard({
           ? "ca-panther-panel"
           : "ca-neo";
   return <div className={`rounded-[1.35rem] ${v} ${className}`}>{children}</div>;
+}
+
+export function MetaChip({
+  label,
+  className = "",
+}: {
+  label: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex max-w-full items-center rounded-full border border-[var(--ca-border)] bg-white/80 px-2.5 py-1 text-[10px] font-bold tracking-wide text-[var(--ca-ink)] shadow-sm backdrop-blur-sm ${className}`}
+    >
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
+export function TextArea({
+  className = "",
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className={`w-full rounded-2xl border border-[var(--ca-border-strong)] bg-white/90 px-4 py-3.5 text-[var(--ca-ink)] shadow-[var(--ca-inset)] placeholder:text-[var(--ca-ink-subtle)] outline-none focus:border-[var(--ca-accent)] focus:ring-4 focus:ring-[var(--ca-accent-soft)] ${className}`}
+      {...props}
+    />
+  );
 }

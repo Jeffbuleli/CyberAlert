@@ -1,7 +1,7 @@
 import type { LinkAnalysisResult, LinkSignal, RiskLevel } from "@/types/security";
 
 const DISCLAIMER =
-  "Cette analyse ne garantit pas qu'un site est sûr à 100 %. Restez prudent avant de fournir des informations personnelles, bancaires ou des mots de passe.";
+  "Cette analyse ne garantit pas qu'un site est sûr à 100 %. Restez prudent.";
 
 export function riskHeadline(level: RiskLevel): string {
   switch (level) {
@@ -14,16 +14,32 @@ export function riskHeadline(level: RiskLevel): string {
   }
 }
 
+function templateOverview(domain: string | null | undefined): string {
+  const host = (domain || "").toLowerCase().replace(/^www\./, "");
+  if (!host) {
+    return "Aperçu indisponible. Basez-vous sur les signaux techniques.";
+  }
+  if (host === "mcbuleli.org" || host.endsWith(".mcbuleli.org")) {
+    return "McBuleli.org : plateforme fintech / P2P basée à Kinshasa (RDC).";
+  }
+  if (host === "cyberalert.mcbuleli.org") {
+    return "Cyber Alert DRC : service McBuleli de vérification de liens.";
+  }
+  return `Domaine « ${host} » : aperçu limité. Voir les signaux techniques.`;
+}
+
 export function templateExplain(result: LinkAnalysisResult): {
+  overview: string;
   summary: string;
   recommendation: string;
   sourceSignalIds: string[];
 } {
   const ids = result.signals.map((s) => s.id);
+  const overview = templateOverview(result.domain);
   if (result.riskLevel === "low") {
     return {
-      summary:
-        "Aucun signal important indiquant une fraude n'a été détecté parmi les contrôles effectués.",
+      overview,
+      summary: "Aucun signal de fraude important détecté dans les contrôles effectués.",
       recommendation: DISCLAIMER,
       sourceSignalIds: ids,
     };
@@ -32,26 +48,27 @@ export function templateExplain(result: LinkAnalysisResult): {
     const titles = result.signals
       .filter((s) => s.severity !== "info")
       .map((s) => s.title)
-      .slice(0, 5);
+      .slice(0, 3);
     return {
-      summary: `Certains éléments nécessitent votre attention${titles.length ? ` : ${titles.join(" - ")}.` : "."}`,
+      overview,
+      summary: `Points d'attention${titles.length ? ` : ${titles.join(", ")}.` : "."}`,
       recommendation:
-        "Ne saisissez pas vos informations sensibles tant que vous n'avez pas confirmé l'identité du site par un canal officiel. " +
+        "Ne saisissez pas d'infos sensibles avant de confirmer le site via un canal officiel. " +
         DISCLAIMER,
       sourceSignalIds: ids,
     };
   }
   return {
-    summary:
-      "Plusieurs indicateurs correspondent à des caractéristiques fréquemment observées sur des sites frauduleux.",
+    overview,
+    summary: "Plusieurs signaux rappellent des sites frauduleux. Prudence maximale.",
     recommendation:
-      "Ne saisissez pas votre mot de passe, vos informations bancaires ou vos données personnelles sur ce site. " +
-      DISCLAIMER,
+      "N'entrez ni mot de passe, ni données bancaires, ni infos personnelles. " + DISCLAIMER,
     sourceSignalIds: ids,
   };
 }
 
 export type AiExplainResult = {
+  overview: string;
   summary: string;
   recommendation: string;
   sourceSignalIds: string[];
@@ -78,6 +95,8 @@ function parseExplainJson(
 ): AiExplainResult | null {
   try {
     const data = JSON.parse(raw) as {
+      overview?: string;
+      site_overview?: string;
       summary?: string;
       recommendation?: string;
       source_signal_ids?: string[];
@@ -87,7 +106,9 @@ function parseExplainJson(
       data.source_signal_ids ?? fallback.sourceSignalIds,
       signals,
     );
+    const overview = (data.overview || data.site_overview || fallback.overview).trim();
     return {
+      overview: overview || fallback.overview,
       summary: data.summary,
       recommendation: data.recommendation.includes("100 %")
         ? data.recommendation
@@ -119,12 +140,14 @@ async function openaiExplainDirect(
 
   const system = [
     "Tu es McBuleli AI pour Cyber Alert DRC.",
-    "Tu EXPLIQUES uniquement les signaux techniques fournis.",
-    "Tu n'inventes JAMAIS de vulnérabilité, preuve ou accusation définitive.",
-    "Ne dis jamais qu'un site est 100% sûr ou forcément une arnaque.",
-    "Réponds UNIQUEMENT en JSON avec keys: summary, recommendation, source_signal_ids.",
-    "source_signal_ids doit être un sous-ensemble des ids fournis.",
-    "Langue: français simple, grand public RDC / Afrique francophone.",
+    "Réponses BRÈVES mais claires (français simple, RDC).",
+    "JSON uniquement: overview, summary, recommendation, source_signal_ids.",
+    "overview: 1 phrase max (ce qu'est le site/marque si connu, sinon « aperçu limité »).",
+    "summary: 1-2 phrases max sur les signaux fournis seulement.",
+    "recommendation: 1 phrase d'action + rappel de prudence (pas de roman).",
+    "Ex overview: « McBuleli.org : plateforme fintech / P2P à Kinshasa. »",
+    "N'invente ni vulnérabilité ni accusation. Jamais « 100% sûr ».",
+    "source_signal_ids = sous-ensemble des ids fournis.",
   ].join(" ");
 
   const user = JSON.stringify({
@@ -153,7 +176,7 @@ async function openaiExplainDirect(
       },
       body: JSON.stringify({
         model,
-        temperature: 0.1,
+        temperature: 0.2,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
@@ -179,12 +202,12 @@ async function openaiExplainDirect(
 }
 
 /**
- * McBuleli AI — couche d'explication (pas le scanner).
+ * McBuleli AI - couche d'explication (pas le scanner).
  * 1) Secure AI Gateway Python (préféré)
  * 2) OpenAI direct côté serveur (même rôle McBuleli AI)
  * 3) Templates FR grounded
  *
- * HackerAI (scans approfondis) reste derrière SecurityScanProvider — à brancher plus tard.
+ * HackerAI (scans approfondis) reste derrière SecurityScanProvider - à brancher plus tard.
  */
 export class McBuleliAIProvider implements AIProvider {
   id = "mcbuleli-ai";
@@ -223,6 +246,8 @@ export class McBuleliAIProvider implements AIProvider {
         });
         if (res.ok) {
           const data = (await res.json()) as {
+            overview?: string;
+            site_overview?: string;
             summary?: string;
             recommendation?: string;
             source_signal_ids?: string[];

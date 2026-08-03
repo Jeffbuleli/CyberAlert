@@ -37,7 +37,7 @@
 }
 
 :root {
-  /* Atmosphere — trust + cyber ops (Pareto-inspired, not matrix) */
+  /* Atmosphere - trust + cyber ops (Pareto-inspired, not matrix) */
   --ca-bg: #e9eef5;
   --ca-bg-deep: #dce4f0;
   --ca-surface: #f5f7fb;
@@ -58,7 +58,7 @@
   --ca-panther-2: #141b2f;
   --ca-panther-line: rgba(255, 255, 255, 0.08);
 
-  /* Severity — distinctive (beyond plain RAG) */
+  /* Severity - distinctive (beyond plain RAG) */
   --ca-critical: #c41e6a;
   --ca-critical-soft: #fce4ef;
   --ca-high: #e25a2c;
