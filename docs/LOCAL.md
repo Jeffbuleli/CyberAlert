@@ -1,30 +1,23 @@
-# Local development with Docker Postgres + optional AI gateway
+# Local development (npm, no Docker)
 
-## Quick start
+Postgres local already running (same instance as McBuleli) + separate DB `cyberalert`.
 
 ```bash
-cp .env.example .env
-docker compose -f ops/vps/docker-compose.yml up -d db
-npm install
+cd /Users/mac/Documents/CyberAlert
+# .env already points to localhost:5432/cyberalert
 npm run db:push
 npm run seed
 npm run dev
 ```
 
-Open http://localhost:3010
+App: **http://localhost:3010** (ports 3000/3001 free for McBuleli)
 
-## AI gateway (optional)
+Admin seed (change password in prod):
+- email: `admin@cyberalert.local`
+- password: from `ADMIN_SEED_PASSWORD` in `.env`
 
-```bash
-cd services/ai-gateway
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-export AI_GATEWAY_SECRET=change-me-ai-gateway-secret
-uvicorn main:app --host 127.0.0.1 --port 8090
-```
-
-Without the gateway, link explanations use grounded French templates.
+AI gateway optional — without it, explanations use French templates.
 
 ## Production
 
-See [ops/vps/SERVER.md](ops/vps/SERVER.md) for `cyberalert.mcbuleli.org` + deploy-vps.
+See [ops/vps/SERVER.md](../ops/vps/SERVER.md) for `cyberalert.mcbuleli.org` + deploy-vps.
