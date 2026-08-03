@@ -71,11 +71,17 @@ export function Badge({
 export function Section({
   children,
   className = "",
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
-  return <section className={`mx-auto w-full max-w-5xl px-4 ${className}`}>{children}</section>;
+  return (
+    <section id={id} className={`mx-auto w-full max-w-5xl px-4 ${className}`}>
+      {children}
+    </section>
+  );
 }
 
 export function SurfaceCard({
