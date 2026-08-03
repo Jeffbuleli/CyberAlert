@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input } from "@/components/ui/primitives";
+import { Button, Input, SurfaceCard } from "@/components/ui/primitives";
 
 export function NewScanForm({
   projects,
@@ -39,23 +39,25 @@ export function NewScanForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-[var(--ca-border)] bg-white p-5">
-      <Input
-        placeholder="Nom du projet"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-      />
-      <Input
-        placeholder="https://votre-app.com"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        required
-      />
-      {error ? <p className="text-sm text-[var(--ca-high)]">{error}</p> : null}
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Scan en cours..." : "Nouveau scan"}
-      </Button>
-    </form>
+    <SurfaceCard className="p-5">
+      <form onSubmit={onSubmit} className="space-y-3">
+        <Input
+          placeholder="Nom du projet"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        <Input
+          placeholder="https://votre-app.com"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          required
+        />
+        {error ? <p className="text-sm text-[var(--ca-high)]">{error}</p> : null}
+        <Button type="submit" disabled={loading} className="w-full">
+          {loading ? "Scan en cours..." : "Nouveau scan"}
+        </Button>
+      </form>
+    </SurfaceCard>
   );
 }

@@ -12,7 +12,9 @@ app = FastAPI(title="Cyber Alert DRC - McBuleli AI Gateway", version="1.0.0")
 SECRET = os.getenv("AI_GATEWAY_SECRET", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+_raw_model = os.getenv("OPENAI_EXPLAIN_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
+# Chat Completions path is stable on gpt-4o-*; gpt-5.x reserved for later Responses API.
+OPENAI_MODEL = "gpt-4o-mini" if _raw_model.lower().startswith("gpt-5") else _raw_model
 
 
 class Signal(BaseModel):

@@ -12,7 +12,8 @@ import {
   securityScans,
   auditRequests,
 } from "@/db";
-import { Section, Badge, Button } from "@/components/ui/primitives";
+import { Section, Badge, Button, SurfaceCard } from "@/components/ui/primitives";
+import { StatCard } from "@/components/ui/visuals";
 import { ReportModeration } from "@/components/admin/report-moderation";
 import { PricingEditor } from "@/components/admin/pricing-editor";
 
@@ -68,23 +69,28 @@ export default async function AdminPage() {
 
   return (
     <Section className="py-10 sm:py-14">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Administration</h1>
-          <p className="text-sm text-[var(--ca-ink-muted)]">Cyber Alert DRC - contrôle opérationnel</p>
+      <SurfaceCard variant="panther" className="mb-8 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/50">
+              Operations
+            </p>
+            <h1 className="mt-1 text-2xl font-bold text-white">Administration</h1>
+            <p className="text-sm text-white/65">Cyber Alert DRC - contrôle opérationnel</p>
+          </div>
+          <Link href="/dashboard">
+            <Button variant="secondary">Dashboard</Button>
+          </Link>
         </div>
-        <Link href="/dashboard">
-          <Button variant="secondary">Dashboard</Button>
-        </Link>
-      </div>
+      </SurfaceCard>
 
       <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <MiniStat label="Link checks" value={counts.checks} />
-        <MiniStat label="Reports" value={counts.reports} />
-        <MiniStat label="Pending" value={counts.pendingReports} />
-        <MiniStat label="Scans" value={counts.scans} />
-        <MiniStat label="Payments" value={counts.payments} />
-        <MiniStat label="Users" value={counts.users} />
+        <StatCard label="Checks" value={counts.checks} tone="info" />
+        <StatCard label="Reports" value={counts.reports} tone="medium" />
+        <StatCard label="Pending" value={counts.pendingReports} tone="caution" />
+        <StatCard label="Scans" value={counts.scans} tone="high" />
+        <StatCard label="Payments" value={counts.payments} tone="low" />
+        <StatCard label="Users" value={counts.users} tone="critical" />
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
@@ -164,14 +170,5 @@ export default async function AdminPage() {
         </div>
       </div>
     </Section>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-[var(--ca-border)] bg-white p-3">
-      <p className="text-xs text-[var(--ca-ink-muted)]">{label}</p>
-      <p className="text-xl font-bold">{value}</p>
-    </div>
   );
 }

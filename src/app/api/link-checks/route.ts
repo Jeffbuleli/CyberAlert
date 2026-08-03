@@ -74,5 +74,6 @@ export async function POST(req: Request) {
     id: row.id,
     riskLevel: analysis.riskLevel,
     blocked: analysis.blocked,
+    aiProvider: ai.provider,
   });
 }

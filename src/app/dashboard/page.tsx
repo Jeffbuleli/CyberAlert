@@ -4,7 +4,8 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
 import { getDb, projects, securityScans, findings } from "@/db";
 import { getActivePlanForUser, getQuotaRemaining } from "@/lib/quotas";
-import { Section, Badge, Button } from "@/components/ui/primitives";
+import { Section, Badge, Button, SurfaceCard } from "@/components/ui/primitives";
+import { StatCard } from "@/components/ui/visuals";
 import { NewScanForm } from "@/components/dashboard/new-scan-form";
 import { LogoutButton } from "@/components/dashboard/logout-button";
 
@@ -42,42 +43,46 @@ export default async function DashboardPage() {
 
   return (
     <Section className="py-10 sm:py-14">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-[var(--ca-ink-muted)]">Cyber Alert DRC</p>
-          <h1 className="text-2xl font-bold sm:text-3xl">
-            Bonjour, {user.name || user.email.split("@")[0]}
-          </h1>
-          <p className="mt-1 text-sm text-[var(--ca-ink-muted)]">
-            Plan : {plan?.name || "Free"} - scans restants : {scanQuota.remaining}/
-            {scanQuota.limit}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {user.role === "admin" ? (
-            <Link href="/admin">
-              <Button variant="secondary">Admin</Button>
+      <SurfaceCard variant="panther" className="overflow-hidden p-6 sm:p-7">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/50">
+              Security Overview
+            </p>
+            <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
+              Bonjour, {user.name || user.email.split("@")[0]}
+            </h1>
+            <p className="mt-1 text-sm text-white/65">
+              Plan : {plan?.name || "Free"} - scans restants : {scanQuota.remaining}/
+              {scanQuota.limit}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {user.role === "admin" ? (
+              <Link href="/admin">
+                <Button variant="secondary">Admin</Button>
+              </Link>
+            ) : null}
+            <Link href="/pricing">
+              <Button variant="secondary">Passer à Pro</Button>
             </Link>
-          ) : null}
-          <Link href="/pricing">
-            <Button variant="secondary">Passer à Pro</Button>
-          </Link>
-          <LogoutButton />
+            <LogoutButton />
+          </div>
         </div>
+      </SurfaceCard>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Critical" value={counts.critical} tone="critical" hint="À traiter d'abord" />
+        <StatCard label="High" value={counts.high} tone="high" hint="Priorité haute" />
+        <StatCard label="Medium" value={counts.medium} tone="medium" hint="Planifier" />
+        <StatCard label="Low" value={counts.low} tone="low" hint="Surveillance" />
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Critical" value={counts.critical} tone="high" />
-        <Stat label="High" value={counts.high} tone="caution" />
-        <Stat label="Medium" value={counts.medium} tone="info" />
-        <Stat label="Low" value={counts.low} tone="low" />
-      </div>
-
-      <div className="mt-10 grid gap-8 lg:grid-cols-2">
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
         <div>
-          <h2 className="font-semibold">Nouveau scan</h2>
+          <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Nouveau scan</h2>
           {scanQuota.remaining <= 0 ? (
-            <div className="mt-3 rounded-2xl border border-[var(--ca-border)] bg-white p-5">
+            <SurfaceCard className="p-5">
               <p className="font-medium">Vous avez utilisé vos scans gratuits.</p>
               <p className="mt-1 text-sm text-[var(--ca-ink-muted)]">
                 Continuez à analyser et améliorer la sécurité de vos applications.
@@ -85,37 +90,36 @@ export default async function DashboardPage() {
               <Link href="/pricing" className="mt-4 inline-block">
                 <Button>Passer à Developer Pro</Button>
               </Link>
-            </div>
+            </SurfaceCard>
           ) : (
-            <div className="mt-3">
-              <NewScanForm
-                projects={userProjects.map((p) => ({
-                  id: p.id,
-                  name: p.name,
-                  url: p.primaryUrl,
-                }))}
-              />
-            </div>
+            <NewScanForm
+              projects={userProjects.map((p) => ({
+                id: p.id,
+                name: p.name,
+                url: p.primaryUrl,
+              }))}
+            />
           )}
         </div>
 
         <div>
-          <h2 className="font-semibold">Projects</h2>
-          <ul className="mt-3 space-y-2">
+          <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Projects</h2>
+          <ul className="space-y-2">
             {userProjects.length === 0 ? (
-              <li className="text-sm text-[var(--ca-ink-muted)]">
-                Aucun projet - lancez un premier scan.
+              <li>
+                <SurfaceCard variant="inset" className="px-4 py-3 text-sm text-[var(--ca-ink-muted)]">
+                  Aucun projet - lancez un premier scan.
+                </SurfaceCard>
               </li>
             ) : (
               userProjects.map((p) => (
-                <li
-                  key={p.id}
-                  className="rounded-xl border border-[var(--ca-border)] bg-white px-4 py-3 text-sm"
-                >
-                  <span className="font-medium">{p.name}</span>
-                  <span className="mt-0.5 block truncate text-[var(--ca-ink-muted)]">
-                    {p.primaryUrl}
-                  </span>
+                <li key={p.id}>
+                  <SurfaceCard className="px-4 py-3 text-sm">
+                    <span className="font-medium">{p.name}</span>
+                    <span className="mt-0.5 block truncate text-[var(--ca-ink-muted)]">
+                      {p.primaryUrl}
+                    </span>
+                  </SurfaceCard>
                 </li>
               ))
             )}
@@ -124,38 +128,20 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mt-10">
-        <h2 className="font-semibold">Recent scans</h2>
-        <ul className="mt-3 space-y-2">
+        <h2 className="mb-3 font-semibold text-[var(--ca-ink)]">Recent scans</h2>
+        <ul className="space-y-2">
           {recentScans.map((s) => (
             <li key={s.id}>
-              <Link
-                href={`/dashboard/scans/${s.id}`}
-                className="flex items-center justify-between rounded-xl border border-[var(--ca-border)] bg-white px-4 py-3 text-sm hover:border-[var(--ca-accent)]"
-              >
-                <span className="truncate">{s.targetUrl}</span>
-                <Badge tone={s.status === "completed" ? "low" : "neutral"}>{s.status}</Badge>
+              <Link href={`/dashboard/scans/${s.id}`} className="block">
+                <SurfaceCard className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition hover:-translate-y-0.5 hover:shadow-[var(--ca-shadow-lift)]">
+                  <span className="truncate">{s.targetUrl}</span>
+                  <Badge tone={s.status === "completed" ? "low" : "neutral"}>{s.status}</Badge>
+                </SurfaceCard>
               </Link>
             </li>
           ))}
         </ul>
       </div>
     </Section>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "high" | "caution" | "info" | "low";
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--ca-border)] bg-white p-4">
-      <Badge tone={tone}>{label}</Badge>
-      <p className="mt-2 text-2xl font-bold">{value}</p>
-    </div>
   );
 }

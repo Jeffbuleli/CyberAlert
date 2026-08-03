@@ -24,6 +24,7 @@ export default async function CheckResultPage({ params }: Props) {
         id={row.id}
         url={row.urlNormalized}
         riskLevel={row.riskLevel as RiskLevel}
+        score={row.score}
         summary={row.aiSummary || ""}
         recommendation={row.aiRecommendation || ""}
         signals={(row.signals || []) as LinkSignal[]}

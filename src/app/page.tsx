@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LinkCheckForm } from "@/components/link-check/link-check-form";
-import { Section } from "@/components/ui/primitives";
+import { Section, SurfaceCard } from "@/components/ui/primitives";
+import { ServiceTile } from "@/components/ui/visuals";
 import {
   IconBuilding,
   IconCode,
@@ -12,67 +13,88 @@ import {
 export default function HomePage() {
   return (
     <div>
-      <div
-        className="relative overflow-hidden"
-        style={{ background: "var(--ca-hero-glow)" }}
-      >
-        <Section className="flex min-h-[calc(100vh-4rem)] flex-col justify-center py-12 sm:py-16">
-          <div className="mx-auto w-full max-w-2xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--ca-border)] bg-white/70 px-3 py-1.5 text-xs font-medium text-[var(--ca-ink-muted)] backdrop-blur">
-              <IconShield size={14} className="text-[var(--ca-accent)]" />
-              Cyber Alert DRC
+      <div className="relative overflow-hidden" style={{ background: "var(--ca-hero-glow)" }}>
+        <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: "var(--ca-grid)", backgroundSize: "32px 32px" }} />
+        <Section className="relative flex min-h-[calc(100vh-4rem)] flex-col justify-center py-12 sm:py-16">
+          <div className="mx-auto grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="text-center lg:text-left">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--ca-border)] bg-white/75 px-3 py-1.5 text-xs font-semibold text-[var(--ca-ink-muted)] shadow-[var(--ca-shadow-soft)] backdrop-blur">
+                <IconShield size={14} className="text-[var(--ca-accent)]" />
+                Cyber Alert DRC
+              </div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-[var(--ca-ink)] sm:text-5xl sm:leading-[1.08]">
+                Vous avez reçu un lien ?
+                <span className="mt-2 block bg-gradient-to-r from-[var(--ca-accent)] to-[#0f9d7a] bg-clip-text text-transparent">
+                  Vérifiez-le avant de cliquer.
+                </span>
+              </h1>
+              <p className="mx-auto mt-4 max-w-lg text-base text-[var(--ca-ink-muted)] sm:text-lg lg:mx-0">
+                Collez l&apos;URL reçue sur WhatsApp, SMS ou email. Résultat clair en quelques secondes.
+              </p>
+              <SurfaceCard variant="lift" className="mt-8 p-4 sm:p-6">
+                <LinkCheckForm />
+              </SurfaceCard>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-[var(--ca-ink)] sm:text-5xl sm:leading-[1.1]">
-              Vous avez reçu un lien ?
-              <span className="mt-2 block text-[var(--ca-accent)]">
-                Vérifiez-le avant de cliquer.
-              </span>
-            </h1>
-            <p className="mx-auto mt-4 max-w-lg text-base text-[var(--ca-ink-muted)] sm:text-lg">
-              Collez l&apos;URL reçue sur WhatsApp, SMS ou email. Résultat clair en quelques secondes.
-            </p>
-            <div className="mt-8 rounded-2xl border border-[var(--ca-border)] bg-white/90 p-4 shadow-[0_20px_50px_-28px_rgba(12,27,42,0.35)] backdrop-blur sm:p-6">
-              <LinkCheckForm />
-            </div>
+
+            <SurfaceCard variant="panther" className="relative hidden overflow-hidden p-6 lg:block">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
+                Trust radar
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-white">Lecture du risque en un coup d&apos;œil</h2>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                {[
+                  { label: "Faible", color: "var(--ca-low)" },
+                  { label: "Prudence", color: "var(--ca-caution)" },
+                  { label: "Élevé", color: "var(--ca-high)" },
+                  { label: "Critique", color: "var(--ca-critical)" },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur"
+                  >
+                    <span
+                      className="mb-2 inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ background: item.color, boxShadow: `0 0 12px ${item.color}` }}
+                    />
+                    <p className="text-sm font-semibold text-white">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-6 text-sm leading-relaxed text-white/65">
+                Signaux techniques d&apos;abord - explications humaines ensuite. Jamais « 100 % sûr ».
+              </p>
+              <div className="pointer-events-none absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-[var(--ca-accent)]/30 blur-3xl" />
+            </SurfaceCard>
           </div>
         </Section>
       </div>
 
       <Section className="py-16">
-        <h2 className="text-center text-sm font-semibold uppercase tracking-wider text-[var(--ca-ink-subtle)]">
+        <h2 className="text-center text-sm font-semibold uppercase tracking-[0.16em] text-[var(--ca-ink-subtle)]">
           Autres services
         </h2>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <Link
+          <ServiceTile
             href="/report"
-            className="group rounded-2xl border border-[var(--ca-border)] bg-white p-5 transition hover:border-[var(--ca-accent)]"
-          >
-            <IconFlag className="text-[var(--ca-high)]" />
-            <h3 className="mt-3 font-semibold">Signaler un site</h3>
-            <p className="mt-1 text-sm text-[var(--ca-ink-muted)]">
-              Phishing, arnaque ou usurpation - sans compte obligatoire.
-            </p>
-          </Link>
-          <Link
+            title="Signaler un site"
+            description="Phishing, arnaque ou usurpation - sans compte obligatoire."
+            accent="var(--ca-high)"
+            icon={<IconFlag />}
+          />
+          <ServiceTile
             href="/developers"
-            className="group rounded-2xl border border-[var(--ca-border)] bg-white p-5 transition hover:border-[var(--ca-accent)]"
-          >
-            <IconCode className="text-[var(--ca-accent)]" />
-            <h3 className="mt-3 font-semibold">Tester mon application</h3>
-            <p className="mt-1 text-sm text-[var(--ca-ink-muted)]">
-              1 à 2 scans gratuits pour les développeurs.
-            </p>
-          </Link>
-          <Link
+            title="Tester mon application"
+            description="1 à 2 scans gratuits pour les développeurs."
+            accent="var(--ca-accent)"
+            icon={<IconCode />}
+          />
+          <ServiceTile
             href="/business"
-            className="group rounded-2xl border border-[var(--ca-border)] bg-white p-5 transition hover:border-[var(--ca-accent)]"
-          >
-            <IconBuilding className="text-[var(--ca-ink)]" />
-            <h3 className="mt-3 font-semibold">Sécuriser mon organisation</h3>
-            <p className="mt-1 text-sm text-[var(--ca-ink-muted)]">
-              Audits et monitoring pour entreprises.
-            </p>
-          </Link>
+            title="Sécuriser mon organisation"
+            description="Audits et monitoring pour entreprises."
+            accent="var(--ca-panther)"
+            icon={<IconBuilding />}
+          />
         </div>
         <p className="mt-10 flex items-center justify-center gap-2 text-sm text-[var(--ca-ink-subtle)]">
           <IconLink size={16} />
