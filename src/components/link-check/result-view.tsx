@@ -2,12 +2,55 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/brand/logo";
 import { Badge, Button, MetaChip, SurfaceCard } from "@/components/ui/primitives";
 import { RiskRadar, SignalHistogram } from "@/components/ui/visuals";
-import { IconAlert, IconCheck, IconFlag, IconCode } from "@/components/icons";
-import type { LinkSignal, RiskLevel } from "@/types/security";
+import {
+  IconAlert,
+  IconBan,
+  IconCode,
+  IconFlag,
+  IconHelpCircle,
+  IconShieldCheck,
+} from "@/components/icons";
+import type { LinkSignal, RiskLevel, Verdict } from "@/types/security";
 import { riskHeadline } from "@/lib/ai/providers";
 
-const toneFor = (level: RiskLevel) =>
-  level === "low" ? "low" : level === "caution" ? "caution" : "high";
+const toneFor = (level: RiskLevel) => {
+  if (level === "low") return "low" as const;
+  if (level === "caution") return "caution" as const;
+  if (level === "unknown") return "unknown" as const;
+  return "high" as const;
+};
+
+function VerdictIcon({ level, size = 22 }: { level: RiskLevel; size?: number }) {
+  if (level === "low") return <IconShieldCheck size={size} />;
+  if (level === "unknown") return <IconHelpCircle size={size} />;
+  if (level === "high") return <IconBan size={size} />;
+  return <IconAlert size={size} />;
+}
+
+function accentFor(level: RiskLevel): string {
+  if (level === "high") return "var(--ca-high)";
+  if (level === "caution") return "var(--ca-caution)";
+  if (level === "unknown") return "var(--ca-unknown)";
+  return "var(--ca-low)";
+}
+
+function whyBullets(level: RiskLevel, signals: LinkSignal[]): string[] {
+  if (level === "unknown") {
+    const bullets = [
+      "Aucune identité officielle confirmée pour ce domaine.",
+      "HTTPS, DNS ou accessibilité technique ne prouvent pas la légitimité.",
+    ];
+    const negative = signals
+      .filter((s) => s.severity !== "info")
+      .slice(0, 2)
+      .map((s) => s.title);
+    return [...bullets, ...negative].slice(0, 4);
+  }
+  return signals
+    .filter((s) => s.severity !== "info")
+    .slice(0, 4)
+    .map((s) => s.title);
+}
 
 export function LinkCheckResultView({
   id,
@@ -15,35 +58,47 @@ export function LinkCheckResultView({
   domain,
   riskLevel,
   score,
+  confidence,
+  verdict,
   overview,
   summary,
   recommendation,
   signals,
   aiProvider,
+  why: whyProp,
+  headline,
+  needsDeepAnalysis,
+  incomplete,
 }: {
   id: string;
   url: string;
   domain?: string | null;
   riskLevel: RiskLevel;
   score: number;
+  confidence?: number | null;
+  verdict?: Verdict | null;
   overview?: string | null;
   summary: string;
   recommendation: string;
   signals: LinkSignal[];
   aiProvider?: "template" | "mcbuleli-ai" | null;
+  why?: string[] | null;
+  headline?: string | null;
+  needsDeepAnalysis?: boolean;
+  incomplete?: boolean;
 }) {
-  const visible = signals.filter((s) => s.severity !== "info" || riskLevel === "low");
-  const Icon = riskLevel === "low" ? IconCheck : IconAlert;
-  const accent =
-    riskLevel === "high"
-      ? "var(--ca-high)"
-      : riskLevel === "caution"
-        ? "var(--ca-caution)"
-        : "var(--ca-low)";
+  const visible =
+    riskLevel === "unknown" || riskLevel === "low"
+      ? signals
+      : signals.filter((s) => s.severity !== "info");
+  const accent = accentFor(riskLevel);
+  const why =
+    whyProp && whyProp.length > 0 ? whyProp.slice(0, 5) : whyBullets(riskLevel, signals);
+  const title = headline?.trim() || riskHeadline(riskLevel);
+  const showReport = riskLevel === "high" || riskLevel === "caution" || riskLevel === "unknown";
 
   return (
     <div className="space-y-6">
-      {/* Ticket / badge shell - inspired by Hackathon pass */}
       <article
         className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-[28px] border border-[var(--ca-border)] bg-[#FAFBFE] shadow-[0_24px_64px_-30px_rgba(12,24,48,0.45)]"
         style={{ ["--result-accent" as string]: accent }}
@@ -70,12 +125,22 @@ export function LinkCheckResultView({
                 </p>
               </div>
             </div>
-            <Badge tone={toneFor(riskLevel)}>{riskHeadline(riskLevel)}</Badge>
+            <Badge tone={toneFor(riskLevel)}>{title}</Badge>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
             <MetaChip label={domain || "domaine inconnu"} />
-            <MetaChip label={`Score ${score}/100`} />
+            {riskLevel === "unknown" ? (
+              <MetaChip label="Légitimité non confirmée" />
+            ) : (
+              <MetaChip label={`Score risque ${score}/100`} />
+            )}
+            {typeof confidence === "number" ? (
+              <MetaChip label={`Confiance analyse ${confidence}%`} />
+            ) : null}
+            {verdict ? <MetaChip label={`Verdict ${verdict}`} /> : null}
+            {needsDeepAnalysis ? <MetaChip label="Analyse approfondie recommandée" /> : null}
+            {incomplete ? <MetaChip label="IA partielle – preuves techniques" /> : null}
             <MetaChip label={`${signals.length} signaux`} />
             <MetaChip
               label={aiProvider === "mcbuleli-ai" ? "McBuleli AI" : "Analyse technique"}
@@ -90,16 +155,39 @@ export function LinkCheckResultView({
                   className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-[0_12px_24px_-12px_rgba(0,0,0,0.45)]"
                   style={{ background: accent }}
                 >
-                  <Icon size={22} />
+                  <VerdictIcon level={riskLevel} />
                 </span>
                 <div className="min-w-0">
                   <h1 className="text-2xl font-extrabold tracking-tight text-[var(--ca-ink)] sm:text-3xl">
-                    {riskHeadline(riskLevel)}
+                    {title}
                   </h1>
                   <p className="mt-1.5 break-all text-sm text-[var(--ca-ink-muted)]">{url}</p>
                 </div>
               </div>
               <p className="mt-4 text-base leading-relaxed text-[var(--ca-ink)]">{summary}</p>
+
+              {why.length > 0 ? (
+                <div className="mt-4">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[var(--ca-ink-subtle)]">
+                    Pourquoi ?
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {why.map((item) => (
+                      <li
+                        key={item}
+                        className="flex gap-2 text-sm leading-snug text-[var(--ca-ink)]"
+                      >
+                        <span
+                          className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ background: accent }}
+                          aria-hidden
+                        />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -116,13 +204,12 @@ export function LinkCheckResultView({
           }}
         >
           <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/50">
-            Recommandation
+            Conseil
           </p>
           <p className="mt-1.5 text-sm leading-relaxed text-white/85">{recommendation}</p>
         </div>
       </article>
 
-      {/* McBuleli AI site overview */}
       <SurfaceCard variant="lift" className="overflow-hidden p-0">
         <div className="flex items-center gap-3 border-b border-[var(--ca-border)] bg-[var(--ca-accent-soft)]/50 px-5 py-3.5">
           <BrandLogo size={48} />
@@ -130,16 +217,18 @@ export function LinkCheckResultView({
             <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[var(--ca-accent)]">
               McBuleli AI
             </p>
-            <p className="text-sm font-bold text-[var(--ca-ink)]">Aperçu du lien</p>
+            <p className="text-sm font-bold text-[var(--ca-ink)]">Analyse McBuleli AI</p>
           </div>
         </div>
         <div className="px-5 py-4">
           <p className="text-base leading-relaxed text-[var(--ca-ink)]">
             {overview?.trim() ||
-              "Aperçu indisponible pour le moment. Les signaux techniques ci-dessous restent la base de la vérification."}
+              "Aperçu indisponible pour le moment. Les preuves techniques restent la base de la vérification."}
           </p>
           <p className="mt-3 text-[11px] font-medium text-[var(--ca-ink-subtle)]">
-            Lecture assistée - les signaux techniques restent la référence.
+            {incomplete
+              ? "IA indisponible ou partielle – verdict basé sur les preuves techniques uniquement."
+              : "Raisonnement grounded sur les preuves collectées – jamais d'invention de faits."}
           </p>
         </div>
       </SurfaceCard>
@@ -174,7 +263,7 @@ export function LinkCheckResultView({
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        {(riskLevel === "high" || riskLevel === "caution") && (
+        {showReport && (
           <Link href={`/report?url=${encodeURIComponent(url)}&from=${id}`}>
             <Button variant="danger" className="w-full sm:w-auto">
               <IconFlag size={18} />

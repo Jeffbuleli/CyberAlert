@@ -108,3 +108,31 @@ export function IconSpinner(props: IconProps) {
     </svg>
   );
 }
+
+export function IconHelpCircle(props: IconProps) {
+  return (
+    <svg {...base(props)} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5a2.5 2.5 0 013.8 2.1c0 1.5-2.3 2-2.3 3.4" />
+      <path d="M12 17.25h.01" />
+    </svg>
+  );
+}
+
+export function IconBan(props: IconProps) {
+  return (
+    <svg {...base(props)} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M6.5 6.5l11 11" />
+    </svg>
+  );
+}
+
+export function IconShieldCheck(props: IconProps) {
+  return (
+    <svg {...base(props)} stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}

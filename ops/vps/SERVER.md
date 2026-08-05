@@ -34,3 +34,18 @@
 #
 # Ports (localhost only):
 #   web 3010 · ai 8090 · postgres 5433
+#
+# 6. VPS organization (HackerAI lab + schema prep) — see ops/vps/VPS_ORGANIZATION.md
+#    sudo bash /opt/cyberalert/ops/vps/sql/apply-prepare-schema.sh
+#    sudo bash /opt/cyberalert/ops/vps/hackerai/setup-hackerai-service.sh
+#    # edit /etc/cyberalert/hackerai.env then:
+#    sudo bash /opt/cyberalert/ops/vps/hackerai/setup-hackerai-service.sh --enable
+#    Docker sandbox HackerAI: REQUIRES ≥4 GiB RAM — keep HACKERAI_ALLOW_DOCKER_SANDBOX=0 on 1.6 GiB
+#
+# 7. HackerAI agent (optional deep lab) — NOT Render, NOT --dangerous
+#    Host Node for npx (once):
+#      sudo bash /opt/cyberalert/ops/vps/install-hackerai-agent.sh --install-only
+#    Prefer systemd unit above over long-lived foreground npx.
+#    See HACKERAI_INTEGRATION.md + SECURITY.md
+#    Deploy path remains: GitHub / deploy.sh → /opt/cyberalert
+#

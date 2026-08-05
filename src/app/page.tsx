@@ -45,13 +45,13 @@ export default async function HomePage({ searchParams }: Props) {
               <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/55">
                 Trust pass
               </p>
-              <h2 className="mt-2 text-xl font-bold text-white">Risque + aperçu McBuleli AI</h2>
+              <h2 className="mt-2 text-xl font-bold text-white">Verdict + aperçu McBuleli AI</h2>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 {[
-                  { label: "Faible", color: "var(--ca-low)" },
-                  { label: "Prudence", color: "var(--ca-caution)" },
-                  { label: "Élevé", color: "var(--ca-high)" },
-                  { label: "Critique", color: "var(--ca-critical)" },
+                  { label: "Fiable", color: "var(--ca-low)" },
+                  { label: "Non établie", color: "var(--ca-unknown)" },
+                  { label: "Suspect", color: "var(--ca-caution)" },
+                  { label: "Dangereux", color: "var(--ca-high)" },
                 ].map((item) => (
                   <div
                     key={item.label}
@@ -66,7 +66,7 @@ export default async function HomePage({ searchParams }: Props) {
                 ))}
               </div>
               <p className="mt-6 text-sm leading-relaxed text-white/65">
-                Signaux techniques d&apos;abord - McBuleli AI explique le lien ensuite. Jamais « 100 % sûr ».
+                Preuves d&apos;abord – McBuleli AI interprète ensuite. HTTPS ≠ fiable. Jamais « 100 % sûr ».
               </p>
               <div className="pointer-events-none absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-[var(--ca-accent)]/30 blur-3xl" />
             </SurfaceCard>

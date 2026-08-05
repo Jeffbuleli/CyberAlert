@@ -47,7 +47,7 @@ export function Badge({
   tone = "neutral",
   children,
 }: {
-  tone?: "neutral" | "low" | "caution" | "high" | "critical" | "medium" | "info";
+  tone?: "neutral" | "low" | "caution" | "high" | "critical" | "medium" | "info" | "unknown";
   children: ReactNode;
 }) {
   const map = {
@@ -58,6 +58,7 @@ export function Badge({
     high: "bg-[var(--ca-high-soft)] text-[var(--ca-high)]",
     critical: "bg-[var(--ca-critical-soft)] text-[var(--ca-critical)]",
     info: "bg-[var(--ca-info-soft)] text-[var(--ca-info)]",
+    unknown: "bg-[var(--ca-unknown-soft)] text-[var(--ca-unknown)]",
   };
   return (
     <span

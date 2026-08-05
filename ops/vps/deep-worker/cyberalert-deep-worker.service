@@ -1,0 +1,20 @@
+[Unit]
+Description=Cyber Alert deep-worker (queue consumer — prepared, opt-in)
+Documentation=file:///opt/cyberalert/ops/vps/VPS_ORGANIZATION.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Runs INSIDE docker network via compose profile "deep" when activated.
+# This host unit is a placeholder for non-compose installs.
+# Default: disabled. Do not enable until Phase D app is deployed + DEEP_WORKER_MODE=external.
+User=root
+WorkingDirectory=/opt/cyberalert/ops/vps
+ExecStart=/usr/bin/docker compose -f /opt/cyberalert/ops/vps/docker-compose.yml --profile deep up deep-worker
+ExecStop=/usr/bin/docker compose -f /opt/cyberalert/ops/vps/docker-compose.yml --profile deep stop deep-worker
+Restart=on-failure
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from typing import Any, Dict, List, Optional
 
@@ -7,13 +8,12 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="Cyber Alert DRC - McBuleli AI Gateway", version="1.0.0")
+app = FastAPI(title="Cyber Alert DRC - McBuleli AI Gateway", version="1.1.0")
 
 SECRET = os.getenv("AI_GATEWAY_SECRET", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
 _raw_model = os.getenv("OPENAI_EXPLAIN_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
-# Chat Completions path is stable on gpt-4o-*; gpt-5.x reserved for later Responses API.
 OPENAI_MODEL = "gpt-4o-mini" if _raw_model.lower().startswith("gpt-5") else _raw_model
 
 
@@ -33,6 +33,8 @@ class ExplainRequest(BaseModel):
     domain: Optional[str] = None
     url: str
     signals: List[Signal]
+    verdict: Optional[str] = None
+    confidence: Optional[int] = None
 
 
 class ExplainResponse(BaseModel):
@@ -40,6 +42,22 @@ class ExplainResponse(BaseModel):
     summary: str
     recommendation: str
     source_signal_ids: List[str]
+
+
+class AnalyzeResponse(BaseModel):
+    headline: str
+    overview: str
+    why: List[str]
+    advice: str
+    summary: str
+    recommendation: str
+    source_signal_ids: List[str]
+    source_evidence_ids: List[str] = Field(default_factory=list)
+    risk_suggestion: str
+    verdict_suggestion: str
+    confidence: int
+    needs_deep_analysis: bool
+    reasoning: List[str] = Field(default_factory=list)
 
 
 def require_auth(authorization: Optional[str] = Header(default=None)) -> None:
@@ -54,18 +72,48 @@ def require_auth(authorization: Optional[str] = Header(default=None)) -> None:
 
 DISCLAIMER = "Cette analyse ne garantit pas qu'un site est sûr à 100 %. Restez prudent."
 
+ANALYST_SYSTEM = (
+    "Tu es McBuleli AI, analyste cybersécurité pour Cyber Alert DRC (RDC). "
+    "Tu raisonnes UNIQUEMENT à partir des preuves/signaux fournis. "
+    "JSON strict: headline, overview, why, advice, summary, recommendation, "
+    "source_signal_ids, source_evidence_ids, risk_suggestion, verdict_suggestion, "
+    "confidence (0-100), needs_deep_analysis (bool), reasoning. "
+    "headline: 1 ligne. why: 2 à 5 puces. advice: 1 phrase. "
+    "Si identity non établie / risk unknown: JAMAIS fiable. "
+    "HTTPS ≠ légitimité. N'invente aucune source. Jamais 100% sûr. Français court."
+)
+
+
+def _overview_for(domain: Optional[str]) -> str:
+    host = (domain or "ce site").lower().replace("www.", "")
+    if host in ("mcbuleli.org",) or host.endswith(".mcbuleli.org"):
+        return "McBuleli.org : plateforme fintech / P2P basée à Kinshasa (RDC)."
+    return f"Domaine « {host} » : aperçu limité. Voir les preuves techniques."
+
 
 def template_explain(req: ExplainRequest) -> ExplainResponse:
     ids = [s.id for s in req.signals]
-    host = req.domain or "ce site"
-    if host.lower().replace("www.", "") in ("mcbuleli.org",) or host.lower().endswith(".mcbuleli.org"):
-        overview = "McBuleli.org : plateforme fintech / P2P basée à Kinshasa (RDC)."
-    else:
-        overview = f"Domaine « {host} » : aperçu limité. Voir les signaux techniques."
+    overview = _overview_for(req.domain)
+    if req.risk_level == "unknown":
+        return ExplainResponse(
+            overview=overview,
+            summary=(
+                "Preuves insuffisantes pour confirmer que ce site est légitime. "
+                "HTTPS ou DNS ne suffisent pas."
+            ),
+            recommendation=(
+                "Évitez de fournir des informations personnelles tant que l'identité n'est pas confirmée. "
+                + DISCLAIMER
+            ),
+            source_signal_ids=ids,
+        )
     if req.risk_level == "low":
         return ExplainResponse(
             overview=overview,
-            summary="Aucun signal de fraude important détecté dans les contrôles effectués.",
+            summary=(
+                "Domaine associé à une identité connue. "
+                "Aucun signal de fraude important dans les contrôles effectués."
+            ),
             recommendation=DISCLAIMER,
             source_signal_ids=ids,
         )
@@ -91,20 +139,92 @@ def template_explain(req: ExplainRequest) -> ExplainResponse:
     )
 
 
+def template_analyze(body: Dict[str, Any]) -> AnalyzeResponse:
+    risk = str(body.get("risk_level") or "unknown")
+    domain = body.get("domain")
+    signals = body.get("signals") or []
+    ids = [s.get("id") for s in signals if s.get("id")]
+    evidence_ids = [e.get("id") for e in (body.get("evidence_ids") or []) if e.get("id")]
+    identity = body.get("identity") or {}
+    overview = _overview_for(domain if isinstance(domain, str) else None)
+
+    why: List[str] = []
+    match = identity.get("match_type")
+    if match == "exact_official":
+        why.append(f"Domaine associé à {identity.get('identified_entity') or 'une entité connue'}.")
+    elif match in ("lookalike", "brand_in_name"):
+        why.append(
+            f"Usurpation possible de {identity.get('claimed_entity') or 'une marque'} — domaine non officiel."
+        )
+    else:
+        why.append("Aucune identité officielle confirmée pour ce domaine.")
+
+    if (body.get("reputation") or {}).get("status") == "information_not_established":
+        why.append("Réputation non établie.")
+    if (body.get("technical") or {}).get("https"):
+        why.append("HTTPS/TLS présents — preuve technique uniquement, pas de légitimité.")
+
+    for s in signals:
+        if s.get("severity") != "info" and s.get("title") and len(why) < 5:
+            title = str(s["title"])
+            if title not in why:
+                why.append(title)
+
+    why = why[:5]
+    headlines = {
+        "low": "Fiable selon les éléments vérifiés",
+        "caution": "Suspect",
+        "high": "Dangereux",
+        "unknown": "Fiabilité non établie",
+    }
+    advice_map = {
+        "unknown": "Évitez de fournir des informations personnelles tant que l'identité n'est pas confirmée.",
+        "caution": "Ne saisissez pas d'infos sensibles avant de confirmer le site via un canal officiel.",
+        "high": "N'entrez ni mot de passe, ni données bancaires, ni infos personnelles.",
+        "low": "Aucun signal important détecté lors de cette analyse — restez prudent.",
+    }
+    advice = advice_map.get(risk, advice_map["unknown"])
+    verdict_map = {
+        "low": "trusted",
+        "caution": "suspicious",
+        "high": "dangerous",
+        "unknown": "unknown",
+    }
+    needs_deep = risk in ("unknown", "caution", "high") and match != "exact_official"
+    summary = why[0] if why else headlines.get(risk, "Analyse incomplète.")
+
+    return AnalyzeResponse(
+        headline=headlines.get(risk, "Fiabilité non établie"),
+        overview=overview,
+        why=why or ["Preuves insuffisantes."],
+        advice=advice,
+        summary=summary,
+        recommendation=f"{advice} {DISCLAIMER}",
+        source_signal_ids=ids,
+        source_evidence_ids=evidence_ids,
+        risk_suggestion=risk,
+        verdict_suggestion=verdict_map.get(risk, "unknown"),
+        confidence=int(body.get("confidence") or 70),
+        needs_deep_analysis=bool(body.get("needs_deep_analysis_hint") or needs_deep),
+        reasoning=[f"risk={risk}", f"identity={match or 'n/a'}"],
+    )
+
+
 async def openai_explain(req: ExplainRequest) -> Optional[ExplainResponse]:
     if not OPENAI_API_KEY:
         return None
     allowed = {s.id for s in req.signals}
     system = (
         "Tu es McBuleli AI pour Cyber Alert DRC. "
-        "Réponses BRÈVES mais claires. "
+        "Réponses BRÈVES et structurées. "
         "JSON: overview, summary, recommendation, source_signal_ids. "
-        "overview: 1 phrase. summary: 1-2 phrases. recommendation: 1 phrase + prudence. "
-        "Ex: McBuleli.org = fintech/P2P à Kinshasa. "
+        "Si risk_level=unknown: ne jamais dire fiable; HTTPS≠légitimité. "
         "N'invente jamais de vulnérabilité. Jamais 100% sûr. Français simple."
     )
     user = {
         "risk_level": req.risk_level,
+        "verdict": req.verdict,
+        "confidence": req.confidence,
         "score": req.score,
         "domain": req.domain,
         "url": req.url,
@@ -133,7 +253,6 @@ async def openai_explain(req: ExplainRequest) -> Optional[ExplainResponse]:
             return None
         data = res.json()
         content = data["choices"][0]["message"]["content"]
-    import json
 
     parsed = json.loads(content)
     source_ids = [i for i in parsed.get("source_signal_ids", []) if i in allowed]
@@ -147,6 +266,78 @@ async def openai_explain(req: ExplainRequest) -> Optional[ExplainResponse]:
         summary=parsed["summary"],
         recommendation=parsed["recommendation"],
         source_signal_ids=source_ids or list(allowed),
+    )
+
+
+async def openai_analyze(body: Dict[str, Any]) -> Optional[AnalyzeResponse]:
+    if not OPENAI_API_KEY:
+        return None
+    signals = body.get("signals") or []
+    allowed_signals = {s.get("id") for s in signals if s.get("id")}
+    allowed_evidence = {
+        e.get("id") for e in (body.get("evidence_ids") or []) if e.get("id")
+    }
+    payload: Dict[str, Any] = {
+        "model": OPENAI_MODEL,
+        "temperature": 0.15,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": ANALYST_SYSTEM},
+            {"role": "user", "content": json.dumps(body, ensure_ascii=False)},
+        ],
+    }
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        res = await client.post(
+            f"{OPENAI_BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        if res.status_code >= 400:
+            return None
+        data = res.json()
+        content = data["choices"][0]["message"]["content"]
+
+    parsed = json.loads(content)
+    why = [str(w).strip() for w in (parsed.get("why") or []) if str(w).strip()][:5]
+    advice = str(parsed.get("advice") or parsed.get("recommendation") or "").strip()
+    summary = str(parsed.get("summary") or "").strip()
+    if not why or not advice or not summary:
+        return None
+
+    fb = template_analyze(body)
+    risk = parsed.get("risk_suggestion") or fb.risk_suggestion
+    if risk not in ("low", "unknown", "caution", "high"):
+        risk = fb.risk_suggestion
+    verdict = parsed.get("verdict_suggestion") or fb.verdict_suggestion
+    if verdict not in ("trusted", "likely_trusted", "unknown", "suspicious", "dangerous"):
+        verdict = fb.verdict_suggestion
+
+    source_ids = [i for i in parsed.get("source_signal_ids", []) if i in allowed_signals]
+    evidence_ids = [i for i in parsed.get("source_evidence_ids", []) if i in allowed_evidence]
+
+    conf = parsed.get("confidence", fb.confidence)
+    try:
+        conf_i = max(0, min(100, int(conf)))
+    except Exception:
+        conf_i = fb.confidence
+
+    return AnalyzeResponse(
+        headline=str(parsed.get("headline") or fb.headline)[:120],
+        overview=str(parsed.get("overview") or fb.overview)[:200],
+        why=why,
+        advice=advice,
+        summary=summary[:400],
+        recommendation=advice if "100" in advice else f"{advice} {DISCLAIMER}",
+        source_signal_ids=source_ids or fb.source_signal_ids,
+        source_evidence_ids=evidence_ids or fb.source_evidence_ids,
+        risk_suggestion=str(risk),
+        verdict_suggestion=str(verdict),
+        confidence=conf_i,
+        needs_deep_analysis=bool(parsed.get("needs_deep_analysis", fb.needs_deep_analysis)),
+        reasoning=[str(r) for r in (parsed.get("reasoning") or fb.reasoning)][:8],
     )
 
 
@@ -164,6 +355,16 @@ async def explain_link(
     return ai or template_explain(req)
 
 
+@app.post("/v1/analyze-link", response_model=AnalyzeResponse)
+async def analyze_link(
+    body: Dict[str, Any],
+    _: None = Depends(require_auth),
+) -> AnalyzeResponse:
+    """Phase C — McBuleli AI analyste structuré."""
+    ai = await openai_analyze(body)
+    return ai or template_analyze(body)
+
+
 @app.post("/v1/prioritize")
 async def prioritize(body: Dict[str, Any], _: None = Depends(require_auth)) -> Dict[str, Any]:
     findings = body.get("findings") or []
@@ -174,7 +375,7 @@ async def prioritize(body: Dict[str, Any], _: None = Depends(require_auth)) -> D
     )
     return {
         "ordered_ids": [f.get("id") for f in sorted_f if f.get("id")],
-        "rationale": "Priorisation par sévérité puis confiance - données sources uniquement.",
+        "rationale": "Priorisation par sévérité puis confiance – données sources uniquement.",
     }
 
 
@@ -185,11 +386,9 @@ async def report(body: Dict[str, Any], _: None = Depends(require_auth)) -> Dict[
     executive = (
         "Aucun finding critique ou élevé confirmé."
         if not high
-        else "Points prioritaires : " + " - ".join(str(f.get("title")) for f in high[:5])
+        else "Points prioritaires : " + " – ".join(str(f.get("title")) for f in high[:5])
     )
-    technical = "\n".join(
-        f"- [{f.get('severity')}] {f.get('title')}" for f in findings
-    )
+    technical = "\n".join(f"– [{f.get('severity')}] {f.get('title')}" for f in findings)
     return {
         "executive_summary": executive,
         "technical_summary": technical,

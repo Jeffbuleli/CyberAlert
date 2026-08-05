@@ -150,7 +150,15 @@ export default async function AdminPage() {
             >
               <span className="truncate">{c.url}</span>
               <Badge
-                tone={c.risk === "high" ? "high" : c.risk === "caution" ? "caution" : "low"}
+                tone={
+                  c.risk === "high"
+                    ? "high"
+                    : c.risk === "caution"
+                      ? "caution"
+                      : c.risk === "unknown"
+                        ? "unknown"
+                        : "low"
+                }
               >
                 {c.risk}
               </Badge>

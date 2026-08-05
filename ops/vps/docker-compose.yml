@@ -56,10 +56,38 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyberalert}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cyberalert}
       AI_GATEWAY_URL: http://ai:8090
+      # inprocess (default) | external — only set external when deep-worker profile is running
+      DEEP_WORKER_MODE: ${DEEP_WORKER_MODE:-inprocess}
       PORT: "3010"
       HOSTNAME: "0.0.0.0"
     ports:
       - "127.0.0.1:3010:3010"
+
+  # Prepared for Phase D external queue consumer — NOT started by default.
+  # Activate later: docker compose --profile deep up -d deep-worker
+  # Requires app image with scripts/deep-worker.ts + DEEP_WORKER_MODE=external on web.
+  deep-worker:
+    profiles: ["deep"]
+    build:
+      context: ../..
+      dockerfile: ops/vps/Dockerfile.deep-worker
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyberalert}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cyberalert}
+      AI_GATEWAY_URL: http://ai:8090
+      DEEP_WORKER_MODE: external
+      DEEP_WORKER_CONCURRENCY: ${DEEP_WORKER_CONCURRENCY:-1}
+      DEEP_WORKER_POLL_MS: ${DEEP_WORKER_POLL_MS:-3000}
+      HACKERAI_ENABLED: ${HACKERAI_ENABLED:-true}
+      HACKERAI_MODE: ${HACKERAI_MODE:-agent_token}
+      HACKERAI_API_KEY: ${HACKERAI_API_KEY:-}
+      HACKERAI_QUICKSTART_TOKEN: ${HACKERAI_QUICKSTART_TOKEN:-}
+      HACKERAI_API_URL: ${HACKERAI_API_URL:-}
 
 volumes:
   cyberalert_pgdata:

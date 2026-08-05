@@ -74,7 +74,7 @@ export function RiskRadar({
   riskLevel,
 }: {
   score: number;
-  riskLevel: "low" | "caution" | "high";
+  riskLevel: "low" | "caution" | "high" | "unknown";
 }) {
   const clamped = Math.max(0, Math.min(100, score));
   const color =
@@ -82,10 +82,14 @@ export function RiskRadar({
       ? "var(--ca-high)"
       : riskLevel === "caution"
         ? "var(--ca-caution)"
-        : "var(--ca-low)";
+        : riskLevel === "unknown"
+          ? "var(--ca-unknown)"
+          : "var(--ca-low)";
+  // For unknown, show assessment confidence as ring fill (not a "safety score").
+  const ringValue = riskLevel === "unknown" ? Math.max(clamped, 55) : clamped;
   const r = 58;
   const c = 2 * Math.PI * r;
-  const dash = (clamped / 100) * c;
+  const dash = (ringValue / 100) * c;
 
   return (
     <div className="relative mx-auto h-48 w-48">
@@ -144,10 +148,10 @@ export function RiskRadar({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-4xl font-extrabold tracking-tight" style={{ color }}>
-          {clamped}
+          {riskLevel === "unknown" ? "?" : clamped}
         </span>
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--ca-ink-subtle)]">
-          score
+          {riskLevel === "unknown" ? "non établi" : "score"}
         </span>
       </div>
     </div>

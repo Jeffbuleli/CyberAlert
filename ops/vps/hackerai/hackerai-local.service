@@ -1,0 +1,30 @@
+[Unit]
+Description=HackerAI Local Agent (Cyber Alert RDC VPS — Remote control only)
+Documentation=https://help.hackerai.co/en/articles/12961920-connecting-a-hackerai-agent-to-your-local-machine
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hackerai
+Group=hackerai
+EnvironmentFile=-/etc/cyberalert/hackerai.env
+WorkingDirectory=/var/lib/hackerai
+# Official client: receives commands from HackerAI UI Agent Mode.
+# NOT a Cyber Alert HTTP API. No --dangerous.
+ExecStart=/usr/bin/npx --yes @hackerai/local@latest --token ${HACKERAI_API_KEY} --name ${HACKERAI_AGENT_NAME}
+Restart=on-failure
+RestartSec=15
+# Soft resource caps — 1.6 GiB host cannot afford a heavy sandbox
+MemoryMax=256M
+CPUQuota=40%
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/hackerai /home/hackerai
+# Inactivity ~1h disconnects client; Restart keeps lab available
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

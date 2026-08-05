@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "test": "tsx --test src/lib/link-analysis/__tests__/*.test.ts src/lib/security/__tests__/*.test.ts",
+    "deep-worker": "tsx scripts/deep-worker.ts",
+    "test": "tsx --test src/lib/link-analysis/__tests__/*.test.ts src/lib/security/__tests__/*.test.ts src/lib/ai/__tests__/*.test.ts src/lib/security-core/hackerai/__tests__/*.test.ts",
     "seed": "tsx --env-file=.env scripts/seed.ts"
   },
   "dependencies": {

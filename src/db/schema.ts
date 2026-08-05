@@ -131,6 +131,20 @@ export const linkChecks = pgTable(
     aiRecommendation: text("ai_recommendation"),
     aiSourceSignalIds: jsonb("ai_source_signal_ids").default([]),
     aiProvider: varchar("ai_provider", { length: 32 }),
+    /** Phase B */
+    verdict: varchar("verdict", { length: 32 }),
+    confidence: integer("confidence"),
+    evidenceJson: jsonb("evidence_json").default([]),
+    dimensionsJson: jsonb("dimensions_json").default({}),
+    toolsUsed: jsonb("tools_used").default([]),
+    needsDeepAnalysis: boolean("needs_deep_analysis").notNull().default(false),
+    /** Phase C — McBuleli structured analysis */
+    aiAnalysisJson: jsonb("ai_analysis_json").default({}),
+    /** Phase D */
+    status: varchar("status", { length: 32 }).notNull().default("completed"),
+    hackeraiJson: jsonb("hackerai_json").default({}),
+    cacheHit: boolean("cache_hit").notNull().default(false),
+    durationMs: integer("duration_ms"),
     ipHash: varchar("ip_hash", { length: 128 }),
     userAgent: text("user_agent"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -308,5 +322,54 @@ export const analyticsEvents = pgTable(
   (t) => [
     index("analytics_events_name_idx").on(t.name),
     index("analytics_events_created_idx").on(t.createdAt),
+  ],
+);
+
+/** Phase D — URL analysis cache */
+export const analysisCache = pgTable(
+  "analysis_cache",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    cacheKey: varchar("cache_key", { length: 64 }).notNull(),
+    normalizedUrl: text("normalized_url").notNull(),
+    domain: varchar("domain", { length: 255 }),
+    linkCheckId: uuid("link_check_id").references(() => linkChecks.id, {
+      onDelete: "set null",
+    }),
+    riskLevel: varchar("risk_level", { length: 16 }).notNull(),
+    verdict: varchar("verdict", { length: 32 }),
+    payload: jsonb("payload").notNull().default({}),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("analysis_cache_key_uidx").on(t.cacheKey),
+    index("analysis_cache_expires_idx").on(t.expiresAt),
+  ],
+);
+
+/** Phase D — async deep investigation jobs (HackerAI / workers) */
+export const analysisJobs = pgTable(
+  "analysis_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    linkCheckId: uuid("link_check_id")
+      .notNull()
+      .references(() => linkChecks.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 64 }).notNull().default("hackerai"),
+    externalJobId: varchar("external_job_id", { length: 128 }),
+    status: varchar("status", { length: 32 }).notNull().default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    inputJson: jsonb("input_json").default({}),
+    resultJson: jsonb("result_json").default({}),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("analysis_jobs_link_idx").on(t.linkCheckId),
+    index("analysis_jobs_status_idx").on(t.status),
   ],
 );
