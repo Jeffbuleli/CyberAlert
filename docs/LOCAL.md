@@ -20,4 +20,4 @@ AI gateway optional — without it, explanations use French templates.
 
 ## Production
 
-See [ops/vps/SERVER.md](../ops/vps/SERVER.md) for `cyberalert.mcbuleli.org` + deploy-vps.
+See [ops/vps/SERVER.md](../ops/vps/SERVER.md) for `cyberalert-rdc.org` + deploy-vps.

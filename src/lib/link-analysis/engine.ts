@@ -199,7 +199,7 @@ async function safeFetchHead(
         redirect: "manual",
         signal: controller.signal,
         headers: {
-          "User-Agent": "CyberAlertDRC-LinkChecker/1.0 (+https://cyberalert.mcbuleli.org)",
+          "User-Agent": "CyberAlertDRC-LinkChecker/1.0 (+https://cyberalert-rdc.org)",
           Accept: "text/html,application/xhtml+xml",
         },
       });

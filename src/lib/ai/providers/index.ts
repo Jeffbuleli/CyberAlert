@@ -22,7 +22,7 @@ function templateOverview(domain: string | null | undefined): string {
   if (host === "mcbuleli.org" || host.endsWith(".mcbuleli.org")) {
     return "McBuleli.org : plateforme fintech / P2P basée à Kinshasa (RDC).";
   }
-  if (host === "cyberalert.mcbuleli.org") {
+  if (host === "cyberalert-rdc.org" || host === "cyberalert.mcbuleli.org") {
     return "Cyber Alert DRC : service McBuleli de vérification de liens.";
   }
   return `Domaine « ${host} » : aperçu limité. Voir les signaux techniques.`;

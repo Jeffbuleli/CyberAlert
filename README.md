@@ -10,7 +10,7 @@ Plateforme de cybersécurité et de confiance numérique pour la RDC.
 - PostgreSQL + Drizzle ORM
 - Python FastAPI AI gateway (McBuleli AI explain layer)
 - PawaPay (Mobile Money)
-- Deploy VPS : Docker Compose + nginx → `cyberalert.mcbuleli.org`
+- Deploy VPS : Docker Compose + nginx → `https://cyberalert-rdc.org`
 
 ## Développement local
 
