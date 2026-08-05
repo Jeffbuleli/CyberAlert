@@ -7,10 +7,11 @@ type BrandLogoProps = {
 };
 
 /**
- * Official Cyber Alert DRC mark — white disc + thin circle, symbole sur fond blanc.
+ * Official Cyber Alert DRC mark — white disc + thin circle.
+ * Extra inset so side “speed” wings are not clipped on small mobile circles.
  */
 export function BrandLogo({ size = 44, className = "", priority = false }: BrandLogoProps) {
-  const inner = Math.round(size * 0.82);
+  const inner = Math.max(16, Math.round(size * 0.62));
 
   return (
     <span
@@ -24,7 +25,7 @@ export function BrandLogo({ size = 44, className = "", priority = false }: Brand
         height={inner}
         priority={priority}
         unoptimized
-        className="object-contain object-center"
+        className="object-contain object-center p-[2%]"
         style={{ width: inner, height: inner }}
       />
     </span>
