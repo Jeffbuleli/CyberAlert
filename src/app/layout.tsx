@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteFooter, SiteHeader } from "@/components/layout/site-chrome";
 import { getSessionUser } from "@/lib/auth/session";
+import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
+import { PwaInstallBanner } from "@/components/pwa/install-banner";
 
 export const metadata: Metadata = {
   title: {
@@ -11,12 +13,22 @@ export const metadata: Metadata = {
   description:
     "Vérifiez un lien avant de cliquer. Signalement, scans développeurs et audits pour la RDC.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010"),
+  applicationName: "Cyber Alert DRC",
+  appleWebApp: {
+    capable: true,
+    title: "Cyber Alert",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: "#1f4fd8",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -31,6 +43,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SiteHeader user={headerUser} />
         <main className="min-h-[70vh]">{children}</main>
         <SiteFooter />
+        <RegisterServiceWorker />
+        <PwaInstallBanner />
       </body>
     </html>
   );
