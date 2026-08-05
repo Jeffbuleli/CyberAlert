@@ -68,6 +68,9 @@ export default async function DashboardPage() {
             <Link href="/dashboard/settings">
               <Button variant="secondary">Paramètres</Button>
             </Link>
+            <Link href="/dashboard/org">
+              <Button variant="secondary">Actifs org</Button>
+            </Link>
             {!isPro ? (
               <Link href="/pricing/pay">
                 <Button variant="secondary">Passer à Pro</Button>

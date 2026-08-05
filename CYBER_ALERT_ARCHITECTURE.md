@@ -625,13 +625,13 @@ Audit log par analyse : `analysis_id`, timestamp, url, tools, sources, mcbuleli,
 
 ### Phase E — Modules 2/3 + docs + deploy
 
-1. App testing sur Security Core.
-2. Org assets (MVP).
-3. Docs : `SECURITY_TOOLS.md`, `MCBULELI_AI_SECURITY.md`, `HACKERAI_INTEGRATION.md`, `SECURITY.md`.
-4. `.env.example` sans secrets.
-5. Suite de tests (cas 1–9 mission).
-6. Déploiement VPS.
-7. Organisation VPS (HackerAI systemd + schema prep + deep-worker profile) — `ops/vps/VPS_ORGANIZATION.md` (sans activer sandbox Docker sur 1.6 Go).
+1. ✅ App testing sur Security Core (verdict Evidence, ownership, UI sans faux low).
+2. ✅ Org assets (MVP) — `org_assets` / `org_alerts` + `/dashboard/org`.
+3. ✅ Docs : `SECURITY_TOOLS.md`, `MCBULELI_AI_SECURITY.md`, `HACKERAI_INTEGRATION.md`, `SECURITY.md`, `SMOKE_PHASE_E.md`.
+4. ✅ `.env.example` sans secrets.
+5. ✅ Suite de tests (cas 1–9 + scanner-mapping).
+6. ✅ Déploiement VPS (+ org schema SQL).
+7. ✅ Organisation VPS HackerAI lab (sans sandbox Docker sur 1.6 Go).
 
 **Règle** : ne pas casser les routes API publiques ; versionner les champs JSON ; migrations Drizzle propres.
 

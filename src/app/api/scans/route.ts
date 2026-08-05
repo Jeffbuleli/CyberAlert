@@ -4,13 +4,17 @@ import { getDb, projects, securityScans, findings } from "@/db";
 import { getSessionUser } from "@/lib/auth/session";
 import { consumeQuota, getQuotaRemaining } from "@/lib/quotas";
 import { getSecurityScanProvider } from "@/lib/security/providers";
-import { getAIProvider } from "@/lib/ai/providers";
+import {
+  applyMcBuleliAnalysis,
+  getAIProvider,
+} from "@/lib/ai/providers";
 import { trackEvent } from "@/lib/analytics";
 
 const schema = z.object({
   url: z.string().min(3).max(2048),
   projectName: z.string().min(1).max(120),
   projectId: z.string().uuid().optional(),
+  authorized: z.literal(true),
 });
 
 export async function POST(req: Request) {
@@ -19,7 +23,16 @@ export async function POST(req: Request) {
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return Response.json({ error: "invalid", message: "Données invalides." }, { status: 400 });
+    const missingAuth = !parsed.success && parsed.error.issues.some((i) => i.path.includes("authorized"));
+    return Response.json(
+      {
+        error: missingAuth ? "authorization_required" : "invalid",
+        message: missingAuth
+          ? "Vous devez confirmer que vous contrôlez cette URL et autorisez un scan non destructif."
+          : "Données invalides.",
+      },
+      { status: 400 },
+    );
   }
 
   const quota = await getQuotaRemaining(user.id, "scans");
@@ -63,15 +76,42 @@ export async function POST(req: Request) {
       provider: getSecurityScanProvider().id,
       status: "running",
       targetUrl: parsed.data.url.trim(),
+      authorizedByUser: true,
     })
     .returning();
 
   try {
     const provider = getSecurityScanProvider();
-    const result = await provider.scan({ url: parsed.data.url.trim(), projectId });
+    const { findings: result, analysis } = await provider.scan({
+      url: parsed.data.url.trim(),
+      projectId,
+    });
+
     const ai = getAIProvider();
-    const executive = await ai.executiveSummary?.(result);
-    const technical = await ai.technicalSummary?.(result);
+    let merged = analysis;
+    let aiJson: Record<string, unknown> = {};
+    if (analysis) {
+      const mcb = await ai.analyzeLinkResult(analysis);
+      merged = applyMcBuleliAnalysis(analysis, mcb);
+      aiJson = mcb as unknown as Record<string, unknown>;
+    }
+
+    const risk = merged?.riskLevel ?? "unknown";
+    const verdict = merged?.verdict ?? "unknown";
+
+    const executive =
+      (aiJson.overview as string | undefined) ||
+      (aiJson.summary as string | undefined) ||
+      (await ai.executiveSummary?.(result));
+    const technical =
+      (Array.isArray(aiJson.why) ? (aiJson.why as string[]).map((w) => `– ${w}`).join("\n") : null) ||
+      (await ai.technicalSummary?.(result));
+
+    // Honest executive line when unknown and no high findings
+    const honestExecutive =
+      risk === "unknown" || risk === "caution" || risk === "high"
+        ? executive
+        : executive;
 
     if (result.length) {
       await db.insert(findings).values(
@@ -96,15 +136,31 @@ export async function POST(req: Request) {
       .update(securityScans)
       .set({
         status: "completed",
-        summary: `${result.length} finding(s)`,
-        executiveSummary: executive ?? null,
+        summary: `${result.length} finding(s) · verdict ${verdict}`,
+        executiveSummary: honestExecutive ?? null,
         technicalSummary: technical ?? null,
+        verdict,
+        riskLevel: risk,
+        confidence: merged?.confidence ?? null,
+        evidenceJson: merged?.evidenceItems ?? [],
+        dimensionsJson: merged?.dimensions ?? {},
+        aiAnalysisJson: aiJson,
         completedAt: new Date(),
       })
       .where(eq(securityScans.id, scan.id));
 
-    await trackEvent("developer_scan_completed", { id: scan.id, findings: result.length });
-    return Response.json({ id: scan.id, findings: result.length });
+    await trackEvent("developer_scan_completed", {
+      id: scan.id,
+      findings: result.length,
+      risk,
+      verdict,
+    });
+    return Response.json({
+      id: scan.id,
+      findings: result.length,
+      riskLevel: risk,
+      verdict,
+    });
   } catch (e) {
     await db
       .update(securityScans)

@@ -176,6 +176,12 @@ export default function BusinessPage() {
                     Demander un audit
                   </Button>
                 </a>
+                <Link href="/dashboard/org" className="sm:flex-1">
+                  <Button variant="secondary" className="w-full">
+                    Inventaire d&apos;actifs (MVP)
+                    <IconArrowRight size={16} />
+                  </Button>
+                </Link>
                 <Link href="/pricing" className="sm:flex-1">
                   <Button variant="secondary" className="w-full">
                     Voir les tarifs

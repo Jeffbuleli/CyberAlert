@@ -1,37 +1,25 @@
-# Phase status — Cyber Alert RDC (post VPS organization)
+# Phase status — Cyber Alert RDC
 
-Updated: 2026-08-05
+Updated: 2026-08-05 (Phase E implementation)
 
-## Original phases A–E
+## Phases A–E
 
-| Phase | Scope | Code (repo local) | Prod VPS app | Notes |
-|-------|--------|-------------------|--------------|-------|
-| **A** Verdict UNKNOWN | Fix score0→low | ✅ | ❌ not deployed | Prod git still pre–Security Core |
-| **B** Security Core / Evidence | Tools + risk | ✅ | ❌ | Schema columns **prepared** on DB |
-| **C** McBuleli AI analyst | Structured merge | ✅ | Partial (old AI fields) | Gateway `ai` up |
-| **D** HackerAI + cache + async | Adapter + jobs | ✅ in repo | Lab org only | Tables `analysis_*` created; agent unit installed **disabled**; no API invented |
-| **E** Modules 2/3 + docs + deploy | Polish + SECURITY | 🟡 partial | 🟡 org done | SECURITY.md + VPS_ORGANIZATION; modules 2/3 + full deploy remain |
+| Phase | Scope | Status |
+|-------|--------|--------|
+| **A** Verdict UNKNOWN | score0≠low | ✅ prod |
+| **B** Security Core / Evidence | | ✅ prod |
+| **C** McBuleli AI analyst | | ✅ prod |
+| **D** HackerAI adapter + jobs + VPS lab org | Lab only, no API | ✅ |
+| **E** Module 2 + Module 3 MVP + verify | | ✅ code (deploy with this release) |
 
-## Is it time for the “next” phase?
+## Phase E delivered
 
-**Not yet Phase E completion** — and **not yet activating HackerAI Docker sandbox**.
+1. **Module 2** — scans persist Evidence verdict; ownership checkbox; UI uses riskLevel not empty→low; McBuleli on scans.
+2. **Module 3 MVP** — `org_assets` / `org_alerts`, `/dashboard/org`, check API.
+3. Smoke doc — `ops/vps/SMOKE_PHASE_E.md`.
 
-### Do now (still organization / D cutover prep)
+## Still later
 
-1. Put `hsb_…` in `/etc/cyberalert/hackerai.env` → `setup-hackerai-service.sh --enable` (lab Remote control).
-2. **Commit + push** Phase A–D code; `deploy.sh` so prod matches Evidence + UNKNOWN + deep fields.
-3. Keep `DEEP_WORKER_MODE=inprocess`; leave compose profile `deep` **off**.
-4. Keep `HACKERAI_ALLOW_DOCKER_SANDBOX=0` until **≥4 GiB RAM**.
-
-### Then Phase E (true next product phase)
-
-1. Modules 2/3 (app testing / org assets MVP) as scoped in architecture.
-2. Security test suite cas 1–9 on **production** after deploy.
-3. Final Evidence → Verdict verification.
-4. Optional later: external deep-worker + operator runbook; RAM upgrade for local Docker sandbox.
-
-### Verdict
-
-VPS **organization phase = done enough** to enable the agent lab safely.  
-**Next meaningful step = deploy Phase A–D code to this VPS** (still before finishing E).  
-Phase E proper starts after that deploy is green — not before.
+- HackerAI Docker sandbox (≥4 GiB RAM)
+- `DEEP_WORKER_MODE=external`
+- Continuous org monitoring / DNS ownership proof

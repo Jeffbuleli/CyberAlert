@@ -1,62 +1,109 @@
 import { randomUUID } from "crypto";
 import type {
   AuthorizedScope,
+  LinkAnalysisResult,
   NormalizedFinding,
   ScanTarget,
 } from "@/types/security";
 import { analyzeLink } from "@/lib/link-analysis/engine";
 import { getHackerAIAdapter, getHackerAIConfig } from "@/lib/security-core/hackerai";
 
+export type ScanBundle = {
+  findings: NormalizedFinding[];
+  analysis: LinkAnalysisResult | null;
+};
+
 export interface SecurityScanProvider {
   id: string;
-  scan(target: ScanTarget, scope?: AuthorizedScope): Promise<NormalizedFinding[]>;
+  scan(target: ScanTarget, scope?: AuthorizedScope): Promise<ScanBundle>;
+}
+
+function signalsToFindings(
+  analysis: LinkAnalysisResult,
+  source: string,
+): NormalizedFinding[] {
+  const findings: NormalizedFinding[] = [];
+
+  for (const s of analysis.signals) {
+    if (s.severity === "info") continue;
+    const severity =
+      s.severity === "high" ? "high" : s.severity === "medium" ? "medium" : "low";
+    findings.push({
+      id: randomUUID(),
+      title: s.title,
+      severity,
+      confidence: s.confidence,
+      category: s.code,
+      description: s.description,
+      impact: s.severity === "high" ? "Risque potentiel pour les utilisateurs" : undefined,
+      evidence: s.evidence,
+      affectedAsset: analysis.domain ?? analysis.urlNormalized,
+      recommendation: s.recommendation,
+      source,
+      status: "new",
+    });
+  }
+
+  if (analysis.urlNormalized.startsWith("http://") && !analysis.blocked) {
+    findings.push({
+      id: randomUUID(),
+      title: "Absence de HTTPS obligatoire",
+      severity: "medium",
+      confidence: 90,
+      category: "transport",
+      description:
+        "Le site est accessible en HTTP sans preuve d'une redirection forcée vers HTTPS dans cette analyse.",
+      evidence: [`url=${analysis.urlNormalized}`],
+      affectedAsset: analysis.domain ?? analysis.urlNormalized,
+      recommendation: "Activer HTTPS et rediriger tout le trafic HTTP vers HTTPS.",
+      source,
+      status: "new",
+    });
+  }
+
+  const hasBlocking = findings.some(
+    (f) => f.severity === "critical" || f.severity === "high" || f.severity === "medium",
+  );
+
+  // Never leave an unknown/unproven target looking "clean" with zero findings.
+  if (
+    !analysis.blocked &&
+    (analysis.riskLevel === "unknown" || analysis.verdict === "unknown") &&
+    !hasBlocking
+  ) {
+    findings.push({
+      id: randomUUID(),
+      title: "Fiabilité non établie",
+      severity: "info",
+      confidence: analysis.confidence || 70,
+      category: "identity_unknown",
+      description:
+        "Les contrôles techniques (DNS, TLS, HTTP) ne suffisent pas à confirmer la légitimité de cette application. Verdict : UNKNOWN — ne pas traiter comme sûr.",
+      evidence: [
+        `risk_level=${analysis.riskLevel}`,
+        `verdict=${analysis.verdict}`,
+        "HTTPS≠légitimité",
+      ],
+      affectedAsset: analysis.domain ?? analysis.urlNormalized,
+      recommendation:
+        "Confirmer l'identité officielle du domaine avant toute mise en production ou intégration sensible.",
+      source,
+      status: "new",
+    });
+  }
+
+  return findings;
 }
 
 export class InternalScannerProvider implements SecurityScanProvider {
   id = "internal";
 
-  async scan(target: ScanTarget, _scope?: AuthorizedScope): Promise<NormalizedFinding[]> {
+  async scan(target: ScanTarget, _scope?: AuthorizedScope): Promise<ScanBundle> {
     const analysis = await analyzeLink(target.url, { fetchRemote: true });
-    const findings: NormalizedFinding[] = [];
-
-    for (const s of analysis.signals) {
-      if (s.severity === "info") continue;
-      const severity =
-        s.severity === "high" ? "high" : s.severity === "medium" ? "medium" : "low";
-      findings.push({
-        id: randomUUID(),
-        title: s.title,
-        severity,
-        confidence: s.confidence,
-        category: s.code,
-        description: s.description,
-        impact: s.severity === "high" ? "Risque potentiel pour les utilisateurs" : undefined,
-        evidence: s.evidence,
-        affectedAsset: analysis.domain ?? target.url,
-        recommendation: s.recommendation,
-        source: this.id,
-        status: "new",
-      });
-    }
-
-    if (analysis.urlNormalized.startsWith("http://")) {
-      findings.push({
-        id: randomUUID(),
-        title: "Absence de HTTPS obligatoire",
-        severity: "medium",
-        confidence: 90,
-        category: "transport",
-        description:
-          "Le site est accessible en HTTP sans redirection forcée détectée vers HTTPS.",
-        evidence: [`url=${analysis.urlNormalized}`],
-        affectedAsset: analysis.domain ?? target.url,
-        recommendation: "Activer HTTPS et rediriger tout le trafic HTTP vers HTTPS.",
-        source: this.id,
-        status: "new",
-      });
-    }
-
-    return findings;
+    return {
+      findings: signalsToFindings(analysis, this.id),
+      analysis,
+    };
   }
 }
 
@@ -67,27 +114,29 @@ export class InternalScannerProvider implements SecurityScanProvider {
 export class HackerAIProvider implements SecurityScanProvider {
   id = "hackerai";
 
-  async scan(target: ScanTarget, _scope?: AuthorizedScope): Promise<NormalizedFinding[]> {
+  async scan(target: ScanTarget, _scope?: AuthorizedScope): Promise<ScanBundle> {
     const adapter = getHackerAIAdapter();
     if (!(await adapter.isAvailable())) {
       throw new Error("hackerai_not_configured");
     }
+    // Prefer Evidence first so we never invent "safe" from HackerAI alone.
+    const analysis = await analyzeLink(target.url, { fetchRemote: true });
     const { jobId } = await adapter.startInvestigation({
       analysisId: randomUUID(),
       url: target.url,
-      normalizedUrl: target.url,
-      domain: null,
-      riskLevel: "unknown",
-      verdict: "unknown",
+      normalizedUrl: analysis.urlNormalized,
+      domain: analysis.domain,
+      riskLevel: analysis.riskLevel,
+      verdict: analysis.verdict,
       needsDeepAnalysis: true,
       evidenceSummary: [`Authorized app scan for ${target.url}`],
-      signalCodes: [],
+      signalCodes: analysis.signals.map((s) => s.code),
     });
     const result = await adapter.getResult(jobId);
-    return (result?.findings || []).map((f) => ({
+    const deepFindings = (result?.findings || []).map((f) => ({
       id: randomUUID(),
       title: f.title,
-      severity: f.severity === "info" ? "info" : f.severity,
+      severity: (f.severity === "info" ? "info" : f.severity) as NormalizedFinding["severity"],
       confidence: 70,
       category: "hackerai",
       description: f.detail,
@@ -96,6 +145,8 @@ export class HackerAIProvider implements SecurityScanProvider {
       source: this.id,
       status: "new" as const,
     }));
+    const base = signalsToFindings(analysis, "internal");
+    return { findings: [...base, ...deepFindings], analysis };
   }
 }
 
@@ -108,3 +159,6 @@ export function getSecurityScanProvider(): SecurityScanProvider {
   }
   return new InternalScannerProvider();
 }
+
+/** Pure helpers exported for unit tests */
+export const __test = { signalsToFindings };

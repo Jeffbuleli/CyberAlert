@@ -210,12 +210,69 @@ export const securityScans = pgTable(
     executiveSummary: text("executive_summary"),
     technicalSummary: text("technical_summary"),
     rawRef: text("raw_ref"),
+    /** Phase E — Evidence Engine snapshot (Module 2) */
+    verdict: varchar("verdict", { length: 32 }),
+    riskLevel: varchar("risk_level", { length: 16 }),
+    confidence: integer("confidence"),
+    evidenceJson: jsonb("evidence_json").default([]),
+    dimensionsJson: jsonb("dimensions_json").default({}),
+    aiAnalysisJson: jsonb("ai_analysis_json").default({}),
+    authorizedByUser: boolean("authorized_by_user").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (t) => [
     index("security_scans_user_idx").on(t.userId),
     index("security_scans_project_idx").on(t.projectId),
+  ],
+);
+
+/** Phase E Module 3 — organization asset inventory */
+export const orgAssets = pgTable(
+  "org_assets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    label: varchar("label", { length: 120 }).notNull(),
+    url: text("url").notNull(),
+    domain: varchar("domain", { length: 255 }),
+    status: varchar("status", { length: 32 }).notNull().default("active"),
+    lastVerdict: varchar("last_verdict", { length: 32 }),
+    lastRiskLevel: varchar("last_risk_level", { length: 16 }),
+    lastConfidence: integer("last_confidence"),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    lastSummary: text("last_summary"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("org_assets_user_idx").on(t.userId),
+    index("org_assets_domain_idx").on(t.domain),
+  ],
+);
+
+export const orgAlerts = pgTable(
+  "org_alerts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => orgAssets.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    severity: varchar("severity", { length: 16 }).notNull().default("info"),
+    title: varchar("title", { length: 255 }).notNull(),
+    body: text("body"),
+    status: varchar("status", { length: 32 }).notNull().default("open"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("org_alerts_asset_idx").on(t.assetId),
+    index("org_alerts_user_idx").on(t.userId),
+    index("org_alerts_status_idx").on(t.status),
   ],
 );
 

@@ -247,10 +247,16 @@ export class McBuleliAIProvider implements AIProvider {
     };
   }
 
-  async executiveSummary(findings: { title: string; severity: string }[]) {
+  async executiveSummary(findings: { title: string; severity: string; category?: string }[]) {
     const crit = findings.filter((f) => f.severity === "critical" || f.severity === "high");
+    const unknown = findings.some(
+      (f) => f.category === "identity_unknown" || /non établie/i.test(f.title),
+    );
+    if (unknown && !crit.length) {
+      return "Verdict UNKNOWN : la fiabilité n'est pas établie. Absence de finding critique ≠ application sûre. Confirmer l'identité officielle avant production.";
+    }
     if (!crit.length) {
-      return "Aucun finding critique ou élevé n'a été confirmé dans ce scan. Continuer le suivi de routine.";
+      return "Aucun finding critique ou élevé confirmé. Continuer le suivi — ce résumé ne constitue pas une attestation de confiance.";
     }
     return `Points prioritaires pour la direction : ${crit
       .slice(0, 5)
