@@ -41,5 +41,19 @@ export async function POST(req: Request) {
       .where(eq(payments.id, payment.id));
   }
 
+
+  // SafeFind reward payouts (idempotent; ignore if not a SafeFind ref)
+  try {
+    const { applySafefindPayoutWebhook } = await import("@/lib/safefind/payout");
+    if (status === "COMPLETED" || status === "FAILED") {
+      await applySafefindPayoutWebhook({
+        reference: verified.providerRef,
+        status,
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
   return Response.json({ ok: true, status });
 }

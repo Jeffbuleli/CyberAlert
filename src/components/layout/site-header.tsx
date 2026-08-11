@@ -11,6 +11,7 @@ const links = [
   { href: "/report", label: "Signaler" },
   { href: "/developers", label: "Développeurs" },
   { href: "/business", label: "Entreprises" },
+  { href: "/safefind", label: "SafeFind" },
 ];
 
 export type HeaderUser = {

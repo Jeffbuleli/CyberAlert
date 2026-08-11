@@ -430,3 +430,5 @@ export const analysisJobs = pgTable(
     index("analysis_jobs_status_idx").on(t.status),
   ],
 );
+
+export * from "./safefind-schema";
