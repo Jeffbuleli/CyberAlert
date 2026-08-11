@@ -7,7 +7,7 @@ Monolithe **Next.js 16 (App Router) + React 19 + TypeScript + Drizzle ORM + Post
 | Domaine | Réutilisation |
 |--------|----------------|
 | Auth | JWT custom (`src/lib/session.ts`), rôles `user` / `agent` / `super_admin` |
-| RBAC ops | `staff_scopes` — scope ajouté : `safefind` |
+| RBAC ops | `staff_scopes` - scope ajouté : `safefind` |
 | KYC | Didit existant (`src/lib/didit/*`, `kyc_sessions`, `checkKycGate`) |
 | Paiements MoMo | PawaPay (`src/lib/pawapay/*`) + tables `fiat_freshpay_*` (rename historique) |
 | Audit | `platform_admin_audit_log` + `safefind_audit_events` |
@@ -143,7 +143,7 @@ Répond à : qui / quand / quel point / dépôt / réception / transfert / remis
 
 Geo ranking Kinshasa : distance + coût transport estimé + security score (`geo.ts`).
 
-Commissions configurables (`safefind_partner_commission_policies`) — montants non hardcodés métier.
+Commissions configurables (`safefind_partner_commission_policies`) - montants non hardcodés métier.
 
 ---
 
@@ -170,7 +170,7 @@ Pas de duplication des données biométriques Didit.
 
 ## 13. Sécurité
 
-- Vue publique redactée serveur (`privacy.ts`) — pas de CSS-only
+- Vue publique redactée serveur (`privacy.ts`) - pas de CSS-only
 - Enumeration IDs : regex stricte + 404 uniforme + rate limit
 - Partner IDOR : refus si `currentPartnerId` ≠ agent
 - Pas de numéro complet / signature / DOB en public
@@ -182,7 +182,7 @@ Pas de duplication des données biométriques Didit.
 
 ## 14. Tests
 
-`npm run test:safefind` — `src/lib/safefind/__tests__/safefind.test.ts`
+`npm run test:safefind` - `src/lib/safefind/__tests__/safefind.test.ts`
 
 Couvre (logique pure) :
 
@@ -202,7 +202,7 @@ Tests E2E DB complets restent à brancher sur un environnement avec migration ap
 
 ## 15. Limites restantes
 
-- Upload / redaction image serveur (OCR preview) non livré — refs média prévues
+- Upload / redaction image serveur (OCR preview) non livré - refs média prévues
 - SMS / WhatsApp alertes absents (canal email/in-app seulement)
 - Seed partenaires Kinshasa à faire en ops
 - Transfert custody partner→partner UI partielle (API events prêts)
@@ -216,7 +216,7 @@ Tests E2E DB complets restent à brancher sur un environnement avec migration ap
 ## 16. Décisions nécessitant validation humaine
 
 1. Montants finaux commissions partenaires  
-2. Qui paie la récompense (plateforme vs propriétaire) — V1 assume payout plateforme MoMo vers trouveur après autorisation admin  
+2. Qui paie la récompense (plateforme vs propriétaire) - V1 assume payout plateforme MoMo vers trouveur après autorisation admin  
 3. Fenêtres de revue (`INITIAL_REVIEW_WINDOW_MS` / `INCIDENT_REVIEW_WINDOW`) et process légal de transfert de droit  
 4. Activation partenaires (KYC business Didit workflow dédié ?)  
 5. Politique conservation / purge PII dossiers clos  
@@ -230,3 +230,41 @@ Tests E2E DB complets restent à brancher sur un environnement avec migration ap
 - Mobile-first, tokens Cyber Alert / McBuleli existants  
 - Home actions en **SVG** (pas d’emojis)  
 - Pages : `/safefind`, `/lost`, `/found`, `/search`, `/partners`, `/cases/[id]`, `/partner`, `/admin/safefind`
+
+
+---
+
+# EXTENSION V1 - Restitution flexible (2026-08-11)
+
+## Nouveaux workflows
+- Mode A: retrait partenaire + reservation creneau + preparation READY_FOR_PICKUP
+- Mode B: livraison (DeliveryProvider interne) - frais separes de la recompense
+- Mode C: HELD_BY_FINDER - matching discret, pas d'identite croisee
+
+## State machine
+Ajouts: HELD_BY_FINDER, STORED_AT_LOCATION, PICKUP_RESERVED, READY_FOR_PICKUP,
+DELIVERY_*, IN_TRANSIT, ARRIVED, DELIVERED, DELIVERY_FAILED, RETURN_TO_PARTNER,
+POTENTIAL_CHAIN_BREAK
+
+## Storage
+Tables: safefind_storage_zones, safefind_storage_locations, safefind_storage_movements
+QR sur pochette (sleeve_qr_token) - pas sur le document officiel
+Capacite partenaire: storage_capacity / current_storage_count / capacity_status
+Routage: PARTNER_SELECTION_SCORE (poids configurables)
+
+## Pickup
+safefind_pickup_reservations - creneaux 15 min, max configurable
+
+## Delivery
+safefind_delivery_requests + events + fee policies + couriers
+ONLY_VERIFIED_OWNER par defaut
+Echec -> RETURN_TO_PARTNER -> READY_FOR_PICKUP
+
+## Decisions / limites
+- Pas de Didit sur Cyber Alert: gate = email verifie
+- Adresse livraison V1 stockee encodee en clair cote serveur (chiffrage KMS a faire)
+- Reservation UI: besoin d'un partnerId reel (seed partenaires)
+- Apply SQL: `bash ops/vps/sql/apply-safefind-logistics.sh` apres deploy
+
+## Tests
+npm run test:safefind - scenarios A-E, I, J, K, M, N/O (logique)

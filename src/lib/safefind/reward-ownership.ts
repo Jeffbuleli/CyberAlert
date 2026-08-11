@@ -1,5 +1,5 @@
 /**
- * Reward ownership — one primary reward per case.
+ * Reward ownership - one primary reward per case.
  * A re-finder after partner incident does NOT auto-create a second reward.
  */
 
@@ -33,7 +33,7 @@ export type RewardDecision =
 
 /**
  * Who currently holds the reward right.
- * Transfer only via explicit admin/rule — never by simple elapsed time alone.
+ * Transfer only via explicit admin/rule - never by simple elapsed time alone.
  */
 export function resolveRewardOwner(state: RewardOwnershipState): string | null {
   return state.rewardOwnerUserId ?? state.initialFinderUserId;

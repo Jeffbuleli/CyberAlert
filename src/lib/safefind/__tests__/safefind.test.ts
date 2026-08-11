@@ -53,7 +53,7 @@ describe("SafeFind state machine", () => {
   });
 });
 
-describe("SafeFind reward ownership — Test 1 & 2", () => {
+describe("SafeFind reward ownership - Test 1 & 2", () => {
   it("Test 1: authorizes single reward after return when KYC ok", () => {
     const d = canAuthorizeReward({
       ownership: {
@@ -127,7 +127,7 @@ describe("SafeFind reward ownership — Test 1 & 2", () => {
   });
 });
 
-describe("SafeFind matching & duplicates — Test 3 & 6", () => {
+describe("SafeFind matching & duplicates - Test 3 & 6", () => {
   it("Test 3: detects duplicate found declarations", () => {
     const r = arePotentialDuplicateFounds(
       {
@@ -175,7 +175,7 @@ describe("SafeFind matching & duplicates — Test 3 & 6", () => {
   });
 });
 
-describe("SafeFind antifraud — Test 4 & 5", () => {
+describe("SafeFind antifraud - Test 4 & 5", () => {
   it("flags found-while-in-partner-custody", () => {
     const v = evaluateAntifraud({
       finderUserId: "K",
@@ -275,7 +275,7 @@ describe("SafeFind privacy & geo", () => {
   });
 });
 
-describe("SafeFind payout webhook idempotency — Test 7 shape", () => {
+describe("SafeFind payout webhook idempotency - Test 7 shape", () => {
   it("exports webhook applicator", () => {
     assert.equal(typeof applySafefindPayoutWebhook, "function");
   });

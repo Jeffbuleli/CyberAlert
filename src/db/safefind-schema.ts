@@ -47,6 +47,16 @@ export const safefindPartners = pgTable(
       .notNull()
       .default("none"),
     securityScore: integer("security_score").notNull().default(50),
+    storageCapacity: integer("storage_capacity").notNull().default(100),
+    currentStorageCount: integer("current_storage_count").notNull().default(0),
+    /** AVAILABLE | NEAR_CAPACITY | FULL | SUSPENDED */
+    capacityStatus: varchar("capacity_status", { length: 32 })
+      .notNull()
+      .default("AVAILABLE"),
+    documentTypesSupported: jsonb("document_types_supported")
+      .$type<string[]>()
+      .notNull()
+      .default(["carte_electeur", "passeport", "permis_conduire"]),
     commissionPolicyId: uuid("commission_policy_id"),
     phone: varchar("phone", { length: 32 }),
     meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
@@ -221,6 +231,11 @@ export const safefindCases = pgTable(
     /** PENDING | LOCKED | AUTHORIZED | PROCESSING | PAID | FAILED | REFUNDED | DISPUTED */
     rewardStatus: varchar("reward_status", { length: 32 }).default("PENDING"),
     rewardFrozen: boolean("reward_frozen").notNull().default(false),
+    /** partner_pickup | delivery | request_partner_deposit | secure_collection */
+    restitutionMode: varchar("restitution_mode", { length: 40 }),
+    storageLocationId: uuid("storage_location_id"),
+    heldByFinder: boolean("held_by_finder").notNull().default(false),
+    sleeveQrToken: varchar("sleeve_qr_token", { length: 64 }),
     matchGroupId: uuid("match_group_id"),
     finderTrustSnapshot: integer("finder_trust_snapshot"),
     meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),

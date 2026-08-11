@@ -40,7 +40,7 @@ function isEmailVerified(v: Date | null | undefined): boolean {
   return v != null;
 }
 function isKycApproved(v: unknown): boolean {
-  // Cyber Alert V1: no Didit — treat email verification as trust gate for rewards/collection.
+  // Cyber Alert V1: no Didit - treat email verification as trust gate for rewards/collection.
   if (typeof v === "boolean") return v;
   return isEmailVerified(v as Date | null | undefined);
 }
@@ -180,6 +180,8 @@ export async function declareFound(args: {
   quartier?: string;
   approxDate?: Date;
   partnerIdHint?: string;
+  /** held = still with finder; deposited = already at partner */
+  possessionMode?: "held" | "deposited";
 }) {
   const db = getDb();
   await ensureDefaultRewardPolicies();
@@ -218,7 +220,7 @@ export async function declareFound(args: {
     ? last4DocumentNumber(args.documentNumber)
     : null;
 
-  // Background match against existing deposited cases — never reveal to finder.
+  // Background match against existing deposited cases - never reveal to finder.
   let linkedExisting: typeof safefindCases.$inferSelect | null = null;
   if (docHash) {
     const [hit] = await db
@@ -346,7 +348,7 @@ export async function declareFound(args: {
         reportedByUserId: null,
         incidentType: "other",
         description:
-          "Document réapparu hors du point partenaire — incident automatique",
+          "Document réapparu hors du point partenaire - incident automatique",
         freezeRewards: true,
         status: "open",
       });
@@ -367,7 +369,7 @@ export async function declareFound(args: {
       );
     }
 
-    // Neutral response — no hint of existing case ownership.
+    // Neutral response - no hint of existing case ownership.
     return {
       ok: true as const,
       neutral: true as const,
@@ -438,12 +440,34 @@ export async function declareFound(args: {
   });
 
   let nextStatus: SafefindCaseStatus = "REGISTERED";
-  if (args.partnerIdHint) {
+  const possession = args.possessionMode ?? (args.partnerIdHint ? "deposited" : "held");
+  if (possession === "held") {
+    nextStatus = "HELD_BY_FINDER";
+    await db
+      .update(safefindCases)
+      .set({
+        status: nextStatus,
+        heldByFinder: true,
+        updatedAt: new Date(),
+        meta: args.partnerIdHint
+          ? { suggestedPartnerId: args.partnerIdHint }
+          : {},
+      })
+      .where(eq(safefindCases.id, caseRow.id));
+    await appendCustodyEvent({
+      caseId: caseRow.id,
+      eventType: "HELD_BY_FINDER",
+      actorUserId: args.userId,
+      actorRole: "finder",
+      newValue: { status: nextStatus },
+    });
+  } else if (args.partnerIdHint) {
     nextStatus = "DEPOSIT_PENDING";
     await db
       .update(safefindCases)
       .set({
         status: nextStatus,
+        heldByFinder: false,
         updatedAt: new Date(),
         meta: { suggestedPartnerId: args.partnerIdHint },
       })
@@ -1152,7 +1176,7 @@ async function notifySafe(
       sql`insert into user_notifications (user_id, kind, payload) values (${userId}::uuid, ${kind}, ${JSON.stringify(payload)}::jsonb)`,
     );
   } catch {
-    /* best-effort — table/kind may vary */
+    /* best-effort - table/kind may vary */
   }
 }
 

@@ -57,7 +57,7 @@ export default function SafefindCasePage() {
       return;
     }
     if (data.status === "DISPUTED") {
-      setClaimMsg("Dossier en litige — revue Cyber Alert.");
+      setClaimMsg("Dossier en litige - revue Cyber Alert.");
       return;
     }
     setClaimMsg(`Correspondance ${data.scoreBand}. Poursuivez la vérification.`);
@@ -112,7 +112,7 @@ export default function SafefindCasePage() {
           {c.holderFirstNameMasked} {c.holderLastNameMasked}
         </p>
         <p className="text-[var(--ca-ink-muted)]">
-          Zone : {c.foundZone.commune ?? "—"}
+          Zone : {c.foundZone.commune ?? "-"}
           {c.foundApproxDate ? ` · ${c.foundApproxDate}` : ""}
         </p>
         {c.visualNotes ? <p className="text-[var(--ca-ink-muted)]">{c.visualNotes}</p> : null}
@@ -128,7 +128,7 @@ export default function SafefindCasePage() {
           <p className="font-medium">Prêt pour retrait</p>
           {verifyResult.partner ? (
             <p className="mt-2 text-sm text-[var(--ca-ink-muted)]">
-              {verifyResult.partner.name} — {verifyResult.partner.address},{" "}
+              {verifyResult.partner.name} - {verifyResult.partner.address},{" "}
               {verifyResult.partner.commune}
             </p>
           ) : null}
@@ -182,6 +182,66 @@ export default function SafefindCasePage() {
           </div>
         </div>
       )}
+      <div className="mt-8 space-y-2 rounded-2xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)] p-4">
+        <p className="text-sm font-medium">Restitution</p>
+        <p className="text-xs text-[var(--ca-ink-muted)]">
+          Mode par defaut: retrait chez un Point SafeFind. Livraison = option.
+        </p>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            className="rounded-xl py-2.5 text-sm ring-1 ring-[var(--ca-border)]"
+            onClick={async () => {
+              const r = await fetch(`/api/safefind/cases/${id}/request-partner-deposit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: "{}",
+              });
+              const d = await r.json();
+              setClaimMsg(d.error ?? "Demande de depot partenaire envoyee");
+            }}
+          >
+            Demander depot chez un partenaire
+          </button>
+          <button
+            type="button"
+            className="rounded-xl py-2.5 text-sm ring-1 ring-[var(--ca-border)]"
+            onClick={async () => {
+              const r = await fetch(`/api/safefind/cases/${id}/request-secure-collection`, {
+                method: "POST",
+              });
+              const d = await r.json();
+              setClaimMsg(d.error ?? "Collecte securisee demandee");
+            }}
+          >
+            Organiser une collecte
+          </button>
+          <button
+            type="button"
+            className="rounded-xl py-2.5 text-sm ring-1 ring-[var(--ca-border)]"
+            onClick={async () => {
+              const r = await fetch(`/api/safefind/cases/${id}/delivery-request`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  destinationCommune: "Kinshasa",
+                  destinationAddress: "A completer apres verification",
+                }),
+              });
+              const d = await r.json();
+              setClaimMsg(
+                d.error ??
+                  (d.breakdown
+                    ? `Livraison: recompense ${d.breakdown.finderReward} + frais ${d.breakdown.deliveryFee} = ${d.breakdown.total} ${d.breakdown.currency}`
+                    : "Demande livraison envoyee"),
+              );
+            }}
+          >
+            Livraison a domicile
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }

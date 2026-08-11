@@ -38,6 +38,10 @@ export async function GET(req: Request) {
       securityScore: p.securityScore,
       status: p.status,
       openingHours: p.openingHours as Record<string, unknown>,
+      storageCapacity: p.storageCapacity ?? null,
+      currentStorageCount: p.currentStorageCount ?? null,
+      capacityStatus: p.capacityStatus ?? null,
+      documentTypesSupported: (p.documentTypesSupported as string[] | null) ?? null,
     })),
     maxKm: SAFEFIND_DEFAULT_CONFIG.NEARBY_PARTNER_RADIUS_KM * 3,
   });

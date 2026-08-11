@@ -18,6 +18,7 @@ export default function SafefindFoundPage() {
   const [documentNumber, setDocumentNumber] = useState("");
   const [commune, setCommune] = useState("");
   const [visualNotes, setVisualNotes] = useState("");
+  const [possessionMode, setPossessionMode] = useState<"held" | "deposited">("held");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{
@@ -40,6 +41,7 @@ export default function SafefindFoundPage() {
           documentNumber: documentNumber || undefined,
           commune: commune || undefined,
           visualNotes: visualNotes || undefined,
+          possessionMode,
         }),
       });
       const data = await res.json();
@@ -143,6 +145,22 @@ export default function SafefindFoundPage() {
               onChange={(e) => setVisualNotes(e.target.value)}
             />
           </label>
+          <fieldset className="space-y-2 text-sm">
+            <legend className="text-[var(--ca-ink-muted)]">Ou se trouve actuellement le document ?</legend>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="poss" checked={possessionMode === "held"} onChange={() => setPossessionMode("held")} />
+              Je le detiens encore
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="poss" checked={possessionMode === "deposited"} onChange={() => setPossessionMode("deposited")} />
+              Je l&apos;ai deja depose chez un partenaire
+            </label>
+            {possessionMode === "held" ? (
+              <p className="text-xs text-[var(--ca-ink-muted)]">
+                Conservez le document en securite. Ne le remettez pas directement a une personne qui pretend en etre proprietaire. Utilisez uniquement SafeFind.
+              </p>
+            ) : null}
+          </fieldset>
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
           <button
             type="submit"

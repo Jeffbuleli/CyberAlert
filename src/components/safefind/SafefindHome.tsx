@@ -104,7 +104,7 @@ export function SafefindHome() {
           </div>
         </div>
         <p className="max-w-sm text-sm leading-relaxed text-[var(--ca-ink-muted)]">
-          Retrouver · Vérifier · Restituer — via un Point SafeFind, sans rencontre trouveur /
+          Retrouver · Vérifier · Restituer - via un Point SafeFind, sans rencontre trouveur /
           propriétaire.
         </p>
       </motion.header>

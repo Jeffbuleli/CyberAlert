@@ -66,7 +66,7 @@ export function evaluateAntifraud(ctx: AntifraudContext): AntifraudVerdict {
 }
 
 /**
- * Finder trust score 0..100 — not just restitution count.
+ * Finder trust score 0..100 - not just restitution count.
  */
 export function computeFinderTrustScore(components: {
   kycApproved: boolean;

@@ -5,3 +5,4 @@ export * from "./reward-ownership";
 export * from "./antifraud";
 export * from "./geo";
 export * from "./privacy";
+export * from "./delivery-provider";

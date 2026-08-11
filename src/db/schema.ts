@@ -432,3 +432,5 @@ export const analysisJobs = pgTable(
 );
 
 export * from "./safefind-schema";
+
+export * from "./safefind-logistics-schema";

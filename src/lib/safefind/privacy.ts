@@ -24,7 +24,7 @@ export function maskName(name: string | null | undefined): string | null {
   return `${t[0]}${"*".repeat(Math.min(t.length - 2, 6))}${t[t.length - 1]}`;
 }
 
-/** Public-safe case view — no full numbers, addresses, DOB, signatures. */
+/** Public-safe case view - no full numbers, addresses, DOB, signatures. */
 export function toPublicCaseView(row: {
   publicId: string;
   documentType: string;

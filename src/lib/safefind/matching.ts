@@ -45,7 +45,7 @@ function daysApart(a: Date | null | undefined, b: Date | null | undefined): numb
 
 /**
  * Multi-signal match score 0..100.
- * High score triggers verification — never automatic ownership proof.
+ * High score triggers verification - never automatic ownership proof.
  */
 export function computeMatchScore(
   caseRow: MatchSignalInput,

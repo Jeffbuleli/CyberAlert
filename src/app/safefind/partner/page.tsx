@@ -90,7 +90,7 @@ export default function SafefindPartnerPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-semibold">Espace partenaire</h1>
       <p className="mt-1 text-sm text-[var(--ca-ink-muted)]">
-        Gardien physique — procédure Cyber Alert.
+        Gardien physique - procédure Cyber Alert.
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-2">

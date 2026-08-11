@@ -15,6 +15,7 @@ const bodyZ = z.object({
   quartier: z.string().max(120).optional(),
   approxDate: z.string().datetime().optional(),
   partnerIdHint: z.string().uuid().optional(),
+  possessionMode: z.enum(["held", "deposited"]).optional(),
 });
 
 export async function POST(req: Request) {
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
         ? new Date(parsed.data.approxDate)
         : undefined,
       partnerIdHint: parsed.data.partnerIdHint,
+      possessionMode: parsed.data.possessionMode,
     });
 
     // Never leak silent link of prior case to recovery finder
