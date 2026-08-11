@@ -13,6 +13,9 @@ const bodyZ = z.object({
   quartier: z.string().max(120).optional(),
   approxDate: z.string().datetime().optional(),
   appearanceHints: z.record(z.string(), z.unknown()).optional(),
+  locationId: z.string().uuid().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
 });
 
 export async function POST(req: Request) {
@@ -43,6 +46,9 @@ export async function POST(req: Request) {
       ? new Date(parsed.data.approxDate)
       : undefined,
     appearanceHints: parsed.data.appearanceHints,
+    locationId: parsed.data.locationId,
+    latitude: parsed.data.latitude,
+    longitude: parsed.data.longitude,
   });
 
   return NextResponse.json({ ok: true, ...result });

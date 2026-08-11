@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import {
+  LocationPicker,
+  emptyPickedLocation,
+  type PickedLocation,
+} from "@/components/safefind/LocationPicker";
 
 const DOCS = [
   { value: "carte_electeur", label: "Carte d'électeur" },
@@ -14,7 +19,7 @@ export default function SafefindLostPage() {
   const [holderFirstName, setHolderFirstName] = useState("");
   const [holderLastName, setHolderLastName] = useState("");
   const [documentNumber, setDocumentNumber] = useState("");
-  const [commune, setCommune] = useState("");
+  const [location, setLocation] = useState<PickedLocation>(emptyPickedLocation());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<
@@ -34,7 +39,11 @@ export default function SafefindLostPage() {
           holderFirstName: holderFirstName || undefined,
           holderLastName: holderLastName || undefined,
           documentNumber: documentNumber || undefined,
-          commune: commune || undefined,
+          commune: location.commune || undefined,
+          quartier: location.quartier || location.landmark || undefined,
+          locationId: location.locationId || undefined,
+          latitude: location.latitude ?? undefined,
+          longitude: location.longitude ?? undefined,
         }),
       });
       const data = await res.json();
@@ -101,14 +110,11 @@ export default function SafefindLostPage() {
             onChange={(e) => setDocumentNumber(e.target.value)}
           />
         </label>
-        <label className="block text-sm">
-          <span className="text-[var(--ca-ink-muted)]">Commune de perte</span>
-          <input
-            className="mt-1 w-full rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)] px-3 py-2.5"
-            value={commune}
-            onChange={(e) => setCommune(e.target.value)}
-          />
-        </label>
+        <LocationPicker
+          value={location}
+          onChange={setLocation}
+          label="Lieu de perte"
+        />
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
         <button
           type="submit"

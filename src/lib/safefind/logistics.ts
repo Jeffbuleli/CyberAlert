@@ -255,6 +255,7 @@ export async function createPickupReservation(args: {
   slotDate: string;
   slotStart: string;
   slotEnd: string;
+  express?: boolean;
 }) {
   const db = getDb();
   const [caseRow] = await db
@@ -298,6 +299,8 @@ export async function createPickupReservation(args: {
       slotStart: args.slotStart,
       slotEnd: args.slotEnd,
       status: "reserved",
+      express: Boolean(args.express),
+      prepareRequestedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: [safefindPickupReservations.caseId],
@@ -307,6 +310,8 @@ export async function createPickupReservation(args: {
         slotStart: args.slotStart,
         slotEnd: args.slotEnd,
         status: "reserved",
+        express: Boolean(args.express),
+        prepareRequestedAt: new Date(),
         updatedAt: new Date(),
       },
     })
@@ -365,7 +370,7 @@ export async function markReadyForPickup(args: {
     .where(eq(safefindCases.id, caseRow.id));
   await db
     .update(safefindPickupReservations)
-    .set({ status: "ready", updatedAt: new Date() })
+    .set({ status: "ready", preparedAt: new Date(), updatedAt: new Date() })
     .where(eq(safefindPickupReservations.caseId, caseRow.id));
 
   await appendCustodyEvent({
@@ -885,4 +890,136 @@ export function ownerFacingCustodySummary(status: string, heldByFinder: boolean)
     };
   }
   return { situation: "other", label: status, tone: "muted" };
+}
+
+
+/** Suggest storage zone by document type (A=electeur, B=permis, C=passeport). */
+export function preferredZoneCodeForDocument(documentType: string): string {
+  if (documentType === "carte_electeur") return "A";
+  if (documentType === "permis_conduire") return "B";
+  if (documentType === "passeport") return "C";
+  return "A";
+}
+
+export async function suggestStorageSlot(args: {
+  agentUserId: string;
+  casePublicId: string;
+}) {
+  const agent = await getPartnerAgent(args.agentUserId);
+  if (!agent) throw new Error("partner_forbidden");
+  const db = getDb();
+  const [caseRow] = await db
+    .select()
+    .from(safefindCases)
+    .where(eq(safefindCases.publicId, args.casePublicId))
+    .limit(1);
+  if (!caseRow || caseRow.currentPartnerId !== agent.partnerId) {
+    throw new Error("partner_case_forbidden");
+  }
+  const zoneCode = preferredZoneCodeForDocument(caseRow.documentType);
+  const zones = await db
+    .select()
+    .from(safefindStorageZones)
+    .where(
+      and(
+        eq(safefindStorageZones.partnerId, agent.partnerId),
+        eq(safefindStorageZones.active, true),
+      ),
+    );
+  const preferred =
+    zones.find((z) => z.code.toUpperCase() === zoneCode) ??
+    zones.find((z) => {
+      const prefs = (z.preferredDocumentTypes as string[] | null) ?? [];
+      return prefs.includes(caseRow.documentType);
+    }) ??
+    zones[0];
+  if (!preferred) {
+    return { zone: null, location: null, path: null as string | null };
+  }
+  const [slot] = await db
+    .select()
+    .from(safefindStorageLocations)
+    .where(
+      and(
+        eq(safefindStorageLocations.partnerId, agent.partnerId),
+        eq(safefindStorageLocations.zoneId, preferred.id),
+        eq(safefindStorageLocations.occupied, false),
+      ),
+    )
+    .limit(1);
+  const path = slot
+    ? `${preferred.code}-${slot.rackCode}-${slot.binCode}${slot.positionCode ? `-${slot.positionCode}` : ""}`
+    : preferred.code;
+  return { zone: preferred, location: slot ?? null, path };
+}
+
+/** Documents deposited without identified owner past retention threshold. */
+export async function listOrphanCases(args?: { minAgeDays?: number; limit?: number }) {
+  const db = getDb();
+  const minDays =
+    args?.minAgeDays ?? SAFEFIND_DEFAULT_CONFIG.ORPHAN_ALERT_DAYS;
+  const limit = args?.limit ?? 100;
+  const cutoff = new Date(Date.now() - minDays * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      id: safefindCases.id,
+      publicId: safefindCases.publicId,
+      documentType: safefindCases.documentType,
+      status: safefindCases.status,
+      partnerId: safefindCases.currentPartnerId,
+      storageLocationId: safefindCases.storageLocationId,
+      foundCommune: safefindCases.foundCommune,
+      createdAt: safefindCases.createdAt,
+      ownerUserId: safefindCases.ownerUserId,
+    })
+    .from(safefindCases)
+    .where(
+      and(
+        sql`${safefindCases.ownerUserId} is null`,
+        sql`${safefindCases.status} in ('DEPOSITED_AT_PARTNER','STORED_AT_LOCATION','READY_FOR_COLLECTION','MATCH_CANDIDATE')`,
+        sql`${safefindCases.createdAt} < ${cutoff}`,
+      ),
+    )
+    .limit(limit);
+
+  return rows.map((r) => {
+    const ageDays = Math.floor(
+      (Date.now() - new Date(r.createdAt).getTime()) / (24 * 60 * 60 * 1000),
+    );
+    const actionRequired =
+      ageDays >= SAFEFIND_DEFAULT_CONFIG.ORPHAN_ACTION_DAYS;
+    return {
+      ...r,
+      ageDays,
+      actionRequired,
+      severity: actionRequired ? "high" : ageDays >= minDays ? "medium" : "low",
+    };
+  });
+}
+
+export async function requestPreparePickup(args: {
+  agentUserId: string;
+  casePublicId: string;
+}) {
+  const agent = await getPartnerAgent(args.agentUserId);
+  if (!agent) throw new Error("partner_forbidden");
+  const db = getDb();
+  const [caseRow] = await db
+    .select()
+    .from(safefindCases)
+    .where(eq(safefindCases.publicId, args.casePublicId))
+    .limit(1);
+  if (!caseRow || caseRow.currentPartnerId !== agent.partnerId) {
+    throw new Error("partner_case_forbidden");
+  }
+  await db
+    .update(safefindPickupReservations)
+    .set({ status: "preparing", updatedAt: new Date() })
+    .where(eq(safefindPickupReservations.caseId, caseRow.id));
+  await writeAudit({
+    caseId: caseRow.id,
+    action: "PICKUP_PREPARE_REQUESTED",
+    actorUserId: args.agentUserId,
+  });
+  return { status: "preparing" as const };
 }

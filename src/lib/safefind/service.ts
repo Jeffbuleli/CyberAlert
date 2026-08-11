@@ -27,6 +27,7 @@ import {
   last4DocumentNumber,
   toPublicCaseView,
 } from "./privacy";
+import { findNearestPartners } from "./location/nearby";
 import { onDocumentRefoundDecision } from "./reward-ownership";
 import { assertTransition, canTransition } from "./state-machine";
 import {
@@ -182,6 +183,10 @@ export async function declareFound(args: {
   partnerIdHint?: string;
   /** held = still with finder; deposited = already at partner */
   possessionMode?: "held" | "deposited";
+  locationId?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationPrecision?: string;
 }) {
   const db = getDb();
   await ensureDefaultRewardPolicies();
@@ -398,6 +403,7 @@ export async function declareFound(args: {
       foundCommune: args.commune ?? null,
       foundQuartier: args.quartier ?? null,
       foundApproxDate: args.approxDate ?? new Date(),
+      foundLocationId: args.locationId ?? null,
       initialFinderUserId: args.userId,
       rewardOwnerUserId: args.userId,
       rewardPolicyId: policy?.id ?? null,
@@ -414,9 +420,14 @@ export async function declareFound(args: {
       kind: "found",
       declarantUserId: args.userId,
       documentType: args.documentType,
-      payload: {},
+      payload: {
+        locationPrecision: args.locationPrecision ?? null,
+      },
       commune: args.commune ?? null,
       quartier: args.quartier ?? null,
+      latitude: args.latitude != null ? String(args.latitude) : null,
+      longitude: args.longitude != null ? String(args.longitude) : null,
+      locationId: args.locationId ?? null,
       status: "linked",
     })
     .returning();
@@ -487,14 +498,47 @@ export async function declareFound(args: {
       .where(eq(safefindCases.id, caseRow.id));
   }
 
+  let nearbyPartners: Awaited<ReturnType<typeof findNearestPartners>> = [];
+  if (args.latitude != null && args.longitude != null) {
+    nearbyPartners = await findNearestPartners({
+      lat: args.latitude,
+      lng: args.longitude,
+      limit: 5,
+      documentType: args.documentType,
+    });
+    if (!args.partnerIdHint && nearbyPartners[0]) {
+      const [fresh] = await db
+        .select({ meta: safefindCases.meta })
+        .from(safefindCases)
+        .where(eq(safefindCases.id, caseRow.id))
+        .limit(1);
+      await db
+        .update(safefindCases)
+        .set({
+          meta: {
+            ...(fresh?.meta ?? {}),
+            suggestedPartnerId: nearbyPartners[0].id,
+            nearbyPartners: nearbyPartners.map((p) => ({
+              id: p.id,
+              distanceKm: p.distanceKm,
+              capacityStatus: p.capacityStatus,
+            })),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(safefindCases.id, caseRow.id));
+    }
+  }
+
   return {
     ok: true as const,
     neutral: false as const,
-    message: "Déclaration enregistrée. Déposez le document dans un Point SafeFind.",
+    message: "Declaration enregistree. Deposez le document dans un Point SafeFind.",
     declarationId: decl.id,
     casePublicId: publicId,
     caseId: caseRow.id,
-    depositHintPartnerId: args.partnerIdHint ?? null,
+    depositHintPartnerId: args.partnerIdHint ?? nearbyPartners[0]?.id ?? null,
+    nearbyPartners,
     linkedSilently: false as const,
   };
 }
@@ -509,6 +553,9 @@ export async function declareLost(args: {
   quartier?: string;
   approxDate?: Date;
   appearanceHints?: Record<string, unknown>;
+  locationId?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }) {
   const db = getDb();
   const docHash = args.documentNumber
@@ -532,6 +579,9 @@ export async function declareLost(args: {
       },
       commune: args.commune ?? null,
       quartier: args.quartier ?? null,
+      latitude: args.latitude != null ? String(args.latitude) : null,
+      longitude: args.longitude != null ? String(args.longitude) : null,
+      locationId: args.locationId ?? null,
       status: "open",
     })
     .returning();

@@ -36,6 +36,7 @@ export const safefindPartners = pgTable(
     quartier: varchar("quartier", { length: 120 }),
     latitude: numeric("latitude", { precision: 10, scale: 7 }),
     longitude: numeric("longitude", { precision: 10, scale: 7 }),
+    placeId: varchar("place_id", { length: 256 }),
     openingHours: jsonb("opening_hours")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -203,6 +204,8 @@ export const safefindCases = pgTable(
     lostCommune: varchar("lost_commune", { length: 120 }),
     lostQuartier: varchar("lost_quartier", { length: 120 }),
     lostApproxDate: timestamp("lost_approx_date", { withTimezone: true }),
+    foundLocationId: uuid("found_location_id"),
+    lostLocationId: uuid("lost_location_id"),
     currentPartnerId: uuid("current_partner_id").references(
       () => safefindPartners.id,
       { onDelete: "set null" },
@@ -280,6 +283,7 @@ export const safefindDeclarations = pgTable(
     quartier: varchar("quartier", { length: 120 }),
     latitude: numeric("latitude", { precision: 10, scale: 7 }),
     longitude: numeric("longitude", { precision: 10, scale: 7 }),
+    locationId: uuid("location_id"),
     /** open | linked | rejected | duplicate_candidate */
     status: varchar("status", { length: 32 }).notNull().default("open"),
     createdAt: timestamp("created_at", { withTimezone: true })

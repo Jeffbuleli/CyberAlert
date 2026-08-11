@@ -3,9 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  LocationPicker,
+  emptyPickedLocation,
+  type PickedLocation,
+} from "@/components/safefind/LocationPicker";
 
 const DOCS = [
-  { value: "carte_electeur", label: "Carte d'électeur" },
+  { value: "carte_electeur", label: "Carte d'electeur" },
   { value: "passeport", label: "Passeport" },
   { value: "permis_conduire", label: "Permis de conduire" },
 ] as const;
@@ -16,7 +21,7 @@ export default function SafefindFoundPage() {
   const [holderFirstName, setHolderFirstName] = useState("");
   const [holderLastName, setHolderLastName] = useState("");
   const [documentNumber, setDocumentNumber] = useState("");
-  const [commune, setCommune] = useState("");
+  const [location, setLocation] = useState<PickedLocation>(emptyPickedLocation());
   const [visualNotes, setVisualNotes] = useState("");
   const [possessionMode, setPossessionMode] = useState<"held" | "deposited">("held");
   const [busy, setBusy] = useState(false);
@@ -24,6 +29,7 @@ export default function SafefindFoundPage() {
   const [done, setDone] = useState<{
     message: string;
     casePublicId: string | null;
+    nearbyPartners: Array<{ id: string; name: string; distanceKm: number }>;
   } | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -39,9 +45,15 @@ export default function SafefindFoundPage() {
           holderFirstName: holderFirstName || undefined,
           holderLastName: holderLastName || undefined,
           documentNumber: documentNumber || undefined,
-          commune: commune || undefined,
+          commune: location.commune || undefined,
+          quartier: location.quartier || location.landmark || undefined,
           visualNotes: visualNotes || undefined,
           possessionMode,
+          locationId: location.locationId || undefined,
+          latitude: location.latitude ?? undefined,
+          longitude: location.longitude ?? undefined,
+          locationPrecision: location.precision || undefined,
+          partnerIdHint: location.partners[0]?.id,
         }),
       });
       const data = await res.json();
@@ -49,12 +61,16 @@ export default function SafefindFoundPage() {
         setError(data.error === "kyc_required" ? "KYC requis" : data.error ?? "Erreur");
         return;
       }
-      setDone({ message: data.message, casePublicId: data.casePublicId });
+      setDone({
+        message: data.message,
+        casePublicId: data.casePublicId,
+        nearbyPartners: data.nearbyPartners ?? location.partners,
+      });
       if (data.casePublicId) {
         router.prefetch(`/safefind/cases/${data.casePublicId}`);
       }
     } catch {
-      setError("Erreur réseau");
+      setError("Erreur reseau");
     } finally {
       setBusy(false);
     }
@@ -65,10 +81,10 @@ export default function SafefindFoundPage() {
       <Link href="/safefind" className="text-sm text-[var(--ca-ink-muted)] hover:text-[var(--ca-ink)]">
         ← SafeFind
       </Link>
-      <h1 className="mt-4 text-2xl font-semibold">J’ai trouvé</h1>
+      <h1 className="mt-4 text-2xl font-semibold">J&apos;ai trouve</h1>
       <p className="mt-1 text-sm text-[var(--ca-ink-muted)]">
-        Déclarez puis déposez au Point SafeFind le plus proche. Pas de rencontre avec le
-        propriétaire.
+        Declarez puis deposez au Point SafeFind le plus proche. Pas de rencontre avec le
+        proprietaire.
       </p>
 
       {done ? (
@@ -77,11 +93,21 @@ export default function SafefindFoundPage() {
           {done.casePublicId ? (
             <p className="mt-3 font-mono text-lg text-[var(--ca-accent)]">{done.casePublicId}</p>
           ) : null}
+          {done.nearbyPartners?.length ? (
+            <ul className="mt-4 space-y-1 text-sm text-[var(--ca-ink-muted)]">
+              <li className="font-medium text-[var(--ca-ink)]">Deposez au point le plus proche</li>
+              {done.nearbyPartners.slice(0, 5).map((p) => (
+                <li key={p.id}>
+                  {p.name} - {Number(p.distanceKm).toFixed(1)} km
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <Link
             href="/safefind/partners"
             className="mt-5 inline-flex rounded-xl bg-[var(--ca-accent)] px-4 py-2.5 text-sm font-medium text-white"
           >
-            Choisir un point
+            Voir les points
           </Link>
         </div>
       ) : (
@@ -102,7 +128,7 @@ export default function SafefindFoundPage() {
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-sm">
-              <span className="text-[var(--ca-ink-muted)]">Prénom (visible)</span>
+              <span className="text-[var(--ca-ink-muted)]">Prenom (visible)</span>
               <input
                 className="mt-1 w-full rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)] px-3 py-2.5"
                 value={holderFirstName}
@@ -127,15 +153,13 @@ export default function SafefindFoundPage() {
               autoComplete="off"
             />
           </label>
-          <label className="block text-sm">
-            <span className="text-[var(--ca-ink-muted)]">Commune de découverte</span>
-            <input
-              className="mt-1 w-full rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)] px-3 py-2.5"
-              value={commune}
-              onChange={(e) => setCommune(e.target.value)}
-              placeholder="ex. Ngaliema"
-            />
-          </label>
+
+          <LocationPicker
+            value={location}
+            onChange={setLocation}
+            label="Lieu de decouverte"
+          />
+
           <label className="block text-sm">
             <span className="text-[var(--ca-ink-muted)]">Apparence</span>
             <textarea

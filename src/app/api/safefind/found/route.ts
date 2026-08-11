@@ -16,6 +16,10 @@ const bodyZ = z.object({
   approxDate: z.string().datetime().optional(),
   partnerIdHint: z.string().uuid().optional(),
   possessionMode: z.enum(["held", "deposited"]).optional(),
+  locationId: z.string().uuid().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  locationPrecision: z.string().max(32).optional(),
 });
 
 export async function POST(req: Request) {
@@ -50,6 +54,10 @@ export async function POST(req: Request) {
         : undefined,
       partnerIdHint: parsed.data.partnerIdHint,
       possessionMode: parsed.data.possessionMode,
+      locationId: parsed.data.locationId,
+      latitude: parsed.data.latitude,
+      longitude: parsed.data.longitude,
+      locationPrecision: parsed.data.locationPrecision,
     });
 
     // Never leak silent link of prior case to recovery finder
@@ -59,6 +67,7 @@ export async function POST(req: Request) {
       declarationId: result.declarationId,
       casePublicId: result.casePublicId,
       depositHintPartnerId: result.depositHintPartnerId,
+      nearbyPartners: "nearbyPartners" in result ? result.nearbyPartners : [],
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

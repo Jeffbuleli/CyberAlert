@@ -8,6 +8,7 @@ const bodyZ = z.object({
   slotDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   slotStart: z.string().min(4).max(8),
   slotEnd: z.string().min(4).max(8),
+  express: z.boolean().optional(),
 });
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {

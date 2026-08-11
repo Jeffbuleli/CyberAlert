@@ -18,6 +18,9 @@ export default function AdminSafefindPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [custody, setCustody] = useState<unknown[]>([]);
+  const [orphans, setOrphans] = useState<
+    Array<{ publicId: string; ageDays: number; severity: string; documentType: string }>
+  >([]);
 
   async function load() {
     const res = await fetch("/api/admin/safefind/cases");
@@ -29,8 +32,16 @@ export default function AdminSafefindPage() {
     setCases(data.cases ?? []);
   }
 
+  async function loadOrphans() {
+    const res = await fetch("/api/admin/safefind/orphans");
+    if (!res.ok) return;
+    const data = await res.json();
+    setOrphans(data.orphans ?? []);
+  }
+
   useEffect(() => {
     load();
+    loadOrphans();
   }, []);
 
   async function freeze(caseId: string) {
@@ -72,6 +83,22 @@ export default function AdminSafefindPage() {
           Admin
         </Link>
       </div>
+      {orphans.length > 0 ? (
+        <div className="mb-8 rounded-2xl border border-amber-500/30 bg-[var(--ca-surface-raised)] p-4">
+          <h2 className="text-sm font-semibold">Documents orphelins</h2>
+          <p className="mt-1 text-xs text-[var(--ca-ink-muted)]">
+            Deposes sans proprietaire identifie - action requise selon age.
+          </p>
+          <ul className="mt-3 space-y-1 text-xs">
+            {orphans.slice(0, 12).map((o) => (
+              <li key={o.publicId}>
+                {o.publicId} · {o.documentType} · {o.ageDays}j · {o.severity}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <ul className="space-y-2">
         {cases.map((c) => (
           <li

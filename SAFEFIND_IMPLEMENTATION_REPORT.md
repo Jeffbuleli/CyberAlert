@@ -268,3 +268,41 @@ Echec -> RETURN_TO_PARTNER -> READY_FOR_PICKUP
 
 ## Tests
 npm run test:safefind - scenarios A-E, I, J, K, M, N/O (logique)
+
+---
+
+# EXTENSION V2 - Location Intelligence + centre logistique (2026-08-11)
+
+## Organisation (cohérente avec l'existant)
+
+| Couche | Rôle | Outil |
+|--------|------|-------|
+| Saisie | Comprendre le lieu (autocomplete / GPS / commune locale) | Google Places (optionnel) + fallback Kinshasa |
+| Normalisation | `safefind_locations` structurée + précision | Location Service |
+| Proximité métier | Distance / top-N partenaires / capacité | **PostGIS si dispo**, sinon haversine `geo.ts` |
+| Affichage | Points proches dans le formulaire | LocationPicker (MapLibre/Google carte full = suite) |
+| Entrepôt partenaire | Emplacement physique B-17-04, file, express | logistics déjà en place + polish |
+
+**Principe:** Google n'est pas le moteur métier. Il aide à localiser; Cyber Alert (PostGIS/haversine + routing capacité) choisit le partenaire.
+
+## Ajouts code
+- `src/lib/safefind/location/*` (types, places-google, normalize, nearby, service)
+- `src/db/safefind-location-schema.ts` → `safefind_locations`, `safefind_geo_areas`
+- UI `LocationPicker` sur `/safefind/found` et `/safefind/lost`
+- APIs: `/api/safefind/locations/autocomplete|resolve|communes`
+- Nearby: `/api/safefind/partners/nearby` passe par `findNearestPartners` si lat/lng
+- Matching: signal `geoCoherence` / `geoDistanceKm` (jamais preuve seule)
+- Orphelins: `listOrphanCases` + `GET /api/admin/safefind/orphans` + bandeau admin
+- Express pickup: flag `express` + `prepareRequestedAt` / `preparedAt`
+- Zone par type doc: `preferredZoneCodeForDocument` + `POST .../storage/suggest`
+
+## Migration
+`ops/vps/sql/0128_safefind_location.sql`
+`bash ops/vps/sql/apply-safefind-location.sh`
+(PostGIS: `CREATE EXTENSION` best-effort; fallback haversine si absent)
+
+## Env
+`GOOGLE_MAPS_API_KEY` (ou `GOOGLE_PLACES_API_KEY`) - optionnel
+
+## Tests
+`npm run test:safefind` - 34 pass (location + logistics + core)

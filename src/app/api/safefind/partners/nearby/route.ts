@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb, safefindPartners } from "@/db";
 import { rankNearbyPartners } from "@/lib/safefind/geo";
+import { findNearestPartners } from "@/lib/safefind/location/nearby";
 import { SAFEFIND_DEFAULT_CONFIG } from "@/lib/safefind/types";
 
 export async function GET(req: Request) {
@@ -9,17 +10,39 @@ export async function GET(req: Request) {
   const lat = url.searchParams.get("lat");
   const lng = url.searchParams.get("lng");
   const commune = url.searchParams.get("commune");
+  const documentType = url.searchParams.get("documentType");
+
+  if (
+    lat != null &&
+    lng != null &&
+    Number.isFinite(Number(lat)) &&
+    Number.isFinite(Number(lng))
+  ) {
+    const partners = await findNearestPartners({
+      lat: Number(lat),
+      lng: Number(lng),
+      limit: 20,
+      documentType,
+    });
+    return NextResponse.json({
+      engine: "location_intelligence",
+      partners: partners.map((p) => ({
+        id: p.id,
+        name: p.name,
+        commune: p.commune,
+        distanceKm: p.distanceKm,
+        estimatedTransportCostCdf: p.estimatedTransportCostCdf,
+        securityScore: p.securityScore,
+        capacityStatus: p.capacityStatus,
+      })),
+    });
+  }
 
   const db = getDb();
   const rows = await db
     .select()
     .from(safefindPartners)
     .where(eq(safefindPartners.status, "active"));
-
-  const origin =
-    lat != null && lng != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))
-      ? { lat: Number(lat), lng: Number(lng) }
-      : null;
 
   let filtered = rows;
   if (commune) {
@@ -28,7 +51,7 @@ export async function GET(req: Request) {
   }
 
   const ranked = rankNearbyPartners({
-    origin,
+    origin: null,
     partners: filtered.map((p) => ({
       id: p.id,
       name: p.name,
@@ -44,9 +67,11 @@ export async function GET(req: Request) {
       documentTypesSupported: (p.documentTypesSupported as string[] | null) ?? null,
     })),
     maxKm: SAFEFIND_DEFAULT_CONFIG.NEARBY_PARTNER_RADIUS_KM * 3,
+    documentType,
   });
 
   return NextResponse.json({
+    engine: "commune_fallback",
     partners: ranked.slice(0, 20).map((p) => ({
       id: p.id,
       name: p.name,
@@ -55,6 +80,7 @@ export async function GET(req: Request) {
       estimatedTransportCostCdf: p.estimatedTransportCostCdf,
       securityScore: p.securityScore,
       openingHours: p.openingHours,
+      capacityStatus: p.capacityStatus,
     })),
   });
 }

@@ -6,3 +6,6 @@ export * from "./antifraud";
 export * from "./geo";
 export * from "./privacy";
 export * from "./delivery-provider";
+export * from "./location/types";
+export { geoMatchSignal } from "./location/normalize";
+export { findNearestPartners } from "./location/nearby";

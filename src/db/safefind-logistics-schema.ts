@@ -28,6 +28,10 @@ export const safefindStorageZones = pgTable(
     code: varchar("code", { length: 32 }).notNull(),
     name: varchar("name", { length: 120 }).notNull(),
     active: boolean("active").notNull().default(true),
+    preferredDocumentTypes: jsonb("preferred_document_types")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -121,6 +125,9 @@ export const safefindPickupReservations = pgTable(
     slotEnd: varchar("slot_end", { length: 8 }).notNull(),
     /** reserved | preparing | ready | completed | cancelled | no_show */
     status: varchar("status", { length: 32 }).notNull().default("reserved"),
+    express: boolean("express").notNull().default(false),
+    prepareRequestedAt: timestamp("prepare_requested_at", { withTimezone: true }),
+    preparedAt: timestamp("prepared_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

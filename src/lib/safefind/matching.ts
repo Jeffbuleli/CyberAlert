@@ -12,6 +12,8 @@ export type MatchSignalInput = {
   lostApproxDate?: Date | null;
   appearanceMeta?: Record<string, unknown> | null;
   visualNotes?: string | null;
+  /** Optional distance between lost and found points (km). Signal only. */
+  geoDistanceKm?: number | null;
 };
 
 export type MatchClaimInput = {
@@ -24,6 +26,7 @@ export type MatchClaimInput = {
   lostApproxDate?: Date | null;
   appearanceHints?: Record<string, unknown> | null;
   notes?: string | null;
+  geoDistanceKm?: number | null;
 };
 
 function norm(s: string | null | undefined): string {
@@ -50,8 +53,8 @@ function daysApart(a: Date | null | undefined, b: Date | null | undefined): numb
 export function computeMatchScore(
   caseRow: MatchSignalInput,
   claim: MatchClaimInput,
-): { score: number; signals: Record<string, number | boolean> } {
-  const signals: Record<string, number | boolean> = {};
+): { score: number; signals: Record<string, number | boolean | string> } {
+  const signals: Record<string, number | boolean | string> = {};
   let score = 0;
 
   if (caseRow.documentType === claim.documentType) {
@@ -117,6 +120,25 @@ export function computeMatchScore(
     const appearancePts = Math.min(10, hits * 4);
     score += appearancePts;
     signals.appearance = appearancePts;
+  }
+
+  const dist =
+    claim.geoDistanceKm ?? caseRow.geoDistanceKm ?? null;
+  if (dist != null && Number.isFinite(dist)) {
+    // Geo is a coherence signal only - never sole ownership proof.
+    if (dist <= 1.5) {
+      score += 8;
+      signals.geoCoherence = "high";
+    } else if (dist <= 3) {
+      score += 5;
+      signals.geoCoherence = "medium";
+    } else if (dist <= 6) {
+      score += 2;
+      signals.geoCoherence = "low";
+    } else {
+      signals.geoCoherence = "weak";
+    }
+    signals.geoDistanceKm = dist;
   }
 
   return { score: Math.min(100, score), signals };
