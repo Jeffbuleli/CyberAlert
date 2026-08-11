@@ -10,6 +10,7 @@ type Partner = {
   distanceKm: number | null;
   estimatedTransportCostCdf: number | null;
   securityScore: number;
+  capacityStatus?: string | null;
 };
 
 export default function SafefindPartnersPage() {
@@ -72,7 +73,8 @@ export default function SafefindPartnersPage() {
         <p className="mt-8 text-sm text-[var(--ca-ink-muted)]">Chargement…</p>
       ) : partners.length === 0 ? (
         <p className="mt-8 text-sm text-[var(--ca-ink-muted)]">
-          Aucun point actif pour l’instant.
+          Aucun point actif. Les Points SafeFind seed (Gombe, Ngaliema, Selembao)
+          apparaissent ici une fois le script ops applique.
         </p>
       ) : (
         <ul className="mt-6 space-y-3">
@@ -89,6 +91,9 @@ export default function SafefindPartnersPage() {
                 <span className="rounded-lg bg-[var(--ca-accent)]/15 px-2 py-1 text-xs text-[var(--ca-accent)]">
                   {p.securityScore}
                 </span>
+                {p.capacityStatus && p.capacityStatus !== "AVAILABLE" ? (
+                  <span className="text-xs text-amber-400">{p.capacityStatus}</span>
+                ) : null}
               </div>
               <div className="mt-3 flex gap-4 text-xs text-[var(--ca-ink-muted)]">
                 {p.distanceKm != null ? (
