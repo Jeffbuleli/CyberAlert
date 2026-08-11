@@ -23,7 +23,40 @@ export type HeaderUser = {
 export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const signedIn = Boolean(user);
+  const [sessionUser, setSessionUser] = useState<HeaderUser | null>(user);
+
+  useEffect(() => {
+    setSessionUser(user);
+  }, [user]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setSessionUser(
+          data.user
+            ? {
+                name: data.user.name ?? null,
+                email: data.user.email,
+                role: data.user.role,
+              }
+            : null,
+        );
+      } catch {
+        /* keep server prop */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   useEffect(() => {
     setOpen(false);
@@ -38,7 +71,10 @@ export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const firstName = user?.name?.trim() || user?.email.split("@")[0] || "Compte";
+  const signedIn = Boolean(sessionUser);
+  const firstName =
+    sessionUser?.name?.trim() || sessionUser?.email.split("@")[0] || "Compte";
+  const homeHref = sessionUser?.role === "admin" ? "/admin" : "/dashboard";
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--ca-border)]/70 bg-[rgba(233,238,245,0.88)] backdrop-blur-xl">
@@ -80,7 +116,7 @@ export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
         <div className="ml-auto flex items-center gap-2">
           {signedIn ? (
             <Link
-              href="/dashboard"
+              href={homeHref}
               className="inline-flex max-w-[10.5rem] items-center justify-center gap-1.5 rounded-2xl bg-[var(--ca-accent)] px-3.5 py-2.5 text-sm font-bold text-white shadow-[0_10px_24px_-14px_rgba(31,79,216,0.65)] transition hover:bg-[#1a45c4] active:scale-[0.98] sm:max-w-none sm:px-4"
             >
               <span className="truncate">{firstName}</span>
@@ -144,7 +180,7 @@ export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
             {signedIn ? (
               <>
                 <Link
-                  href="/dashboard"
+                  href={homeHref}
                   className="rounded-2xl px-4 py-3 text-sm font-semibold text-[var(--ca-ink)] hover:bg-[var(--ca-surface-2)]"
                 >
                   Mon espace
@@ -155,6 +191,14 @@ export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
                 >
                   Paramètres
                 </Link>
+                {sessionUser?.role === "admin" ? (
+                  <Link
+                    href="/safefind/partner"
+                    className="rounded-2xl px-4 py-3 text-sm font-semibold text-[var(--ca-ink)] hover:bg-[var(--ca-surface-2)]"
+                  >
+                    Espace partenaire
+                  </Link>
+                ) : null}
               </>
             ) : (
               <Link

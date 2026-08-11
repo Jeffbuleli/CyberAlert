@@ -63,7 +63,7 @@ export default function RegisterPage() {
         );
         return;
       }
-      router.push("/dashboard");
+      window.location.assign("/dashboard");
     } catch {
       setError("Erreur réseau. Vérifiez votre connexion.");
     } finally {

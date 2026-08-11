@@ -38,11 +38,14 @@ function LoginForm() {
         );
         return;
       }
-      if (next.startsWith("/") && !next.startsWith("//")) {
-        router.push(next);
-      } else {
-        router.push(data.role === "admin" ? "/admin" : "/dashboard");
-      }
+      const dest =
+        next.startsWith("/") && !next.startsWith("//")
+          ? next
+          : data.role === "admin"
+            ? "/admin"
+            : "/dashboard";
+      // Full navigation so root layout + header pick up the new session cookie.
+      window.location.assign(dest);
     } catch {
       setError("Erreur réseau. Vérifiez votre connexion.");
     } finally {

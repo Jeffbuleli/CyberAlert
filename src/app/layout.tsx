@@ -5,6 +5,8 @@ import { getSessionUser } from "@/lib/auth/session";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
 import { PwaInstallBanner } from "@/components/pwa/install-banner";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: {
     default: "Cyber Alert DRC - Vérifiez avant de faire confiance",
