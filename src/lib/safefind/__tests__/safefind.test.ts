@@ -241,6 +241,39 @@ describe("SafeFind privacy & geo", () => {
     assert.ok(!JSON.stringify(view).includes(hash));
   });
 
+  it("marketplace public payload never includes finder fields", () => {
+    const view = toPublicCaseView({
+      publicId: "SF-2026-000099",
+      documentType: "passeport",
+      status: "DEPOSITED_AT_PARTNER",
+      holderFirstName: "Jean",
+      holderLastName: "Kabila",
+      foundCommune: "Gombe",
+      foundQuartier: null,
+      foundApproxDate: null,
+      visualNotes: "cover blue",
+      appearanceMeta: {},
+      mediaRefs: [],
+      rewardAmount: "15000",
+      rewardCurrency: "CDF",
+      createdAt: new Date("2026-08-01T00:00:00Z"),
+    });
+    const listing = {
+      ...view,
+      documentNumberLast4: "1234",
+      partner: { id: "p1", name: "Point Gombe", commune: "Gombe" },
+      // Must never be serialized to clients:
+      initialFinderUserId: undefined,
+      rewardOwnerUserId: undefined,
+    };
+    const json = JSON.stringify(listing);
+    assert.ok(!json.includes("initialFinder"));
+    assert.ok(!json.includes("finderUser"));
+    assert.ok(!json.includes("Jean"));
+    assert.equal(listing.holderFirstNameMasked?.startsWith("J"), true);
+    assert.equal(listing.partner?.name, "Point Gombe");
+  });
+
   it("ranks nearby Kinshasa partners by proximity", () => {
     const ngaliema = { lat: -4.3276, lng: 15.2663 };
     const gombe = { lat: -4.305, lng: 15.313 };

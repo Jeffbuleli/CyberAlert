@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import {
   getDb,
   safefindAuditEvents,
@@ -659,6 +659,196 @@ export async function getCasePublicById(publicId: string) {
     .limit(1);
   if (!row) return null;
   return toPublicCaseView(row);
+}
+
+/** Statuses visible on the public marketplace feed (secured at partner). */
+export const SAFEFIND_MARKETPLACE_STATUSES = [
+  "DEPOSITED_AT_PARTNER",
+  "STORED_AT_LOCATION",
+  "MATCH_CANDIDATE",
+  "OWNER_VERIFICATION",
+  "PICKUP_RESERVED",
+  "READY_FOR_PICKUP",
+  "READY_FOR_COLLECTION",
+] as const;
+
+const SAFEFIND_ACTIVE_RESTITUTION_STATUSES = [
+  "MATCH_CANDIDATE",
+  "OWNER_VERIFICATION",
+  "PICKUP_RESERVED",
+  "READY_FOR_PICKUP",
+  "READY_FOR_COLLECTION",
+  "DELIVERY_REQUESTED",
+  "DELIVERY_AUTHORIZED",
+  "COURIER_ASSIGNED",
+  "PICKUP_FROM_PARTNER",
+  "IN_TRANSIT",
+  "ARRIVED",
+  "DELIVERY_FAILED",
+  "RETURN_TO_PARTNER",
+] as const;
+
+const READY_PICKUP_STATUSES = [
+  "READY_FOR_PICKUP",
+  "READY_FOR_COLLECTION",
+  "PICKUP_RESERVED",
+] as const;
+
+export type MarketplaceListing = ReturnType<typeof toPublicCaseView> & {
+  partner: { id: string; name: string; commune: string } | null;
+  documentNumberLast4: string | null;
+};
+
+export async function listMarketplaceCases(args: {
+  documentType?: string;
+  commune?: string;
+  partnerId?: string;
+  readyOnly?: boolean;
+  nearLat?: number;
+  nearLng?: number;
+  limit?: number;
+}): Promise<{ listings: MarketplaceListing[]; partners: Array<{ id: string; name: string; commune: string }> }> {
+  const db = getDb();
+  const limit = Math.min(Math.max(args.limit ?? 40, 1), 80);
+
+  let nearPartnerIds: string[] | null = null;
+  if (
+    typeof args.nearLat === "number" &&
+    typeof args.nearLng === "number" &&
+    Number.isFinite(args.nearLat) &&
+    Number.isFinite(args.nearLng)
+  ) {
+    const nearby = await findNearestPartners({
+      lat: args.nearLat,
+      lng: args.nearLng,
+      limit: 12,
+    });
+    nearPartnerIds = nearby.map((p) => p.id);
+  }
+
+  const statusFilter = args.readyOnly
+    ? inArray(safefindCases.status, [...READY_PICKUP_STATUSES])
+    : inArray(safefindCases.status, [...SAFEFIND_MARKETPLACE_STATUSES]);
+
+  const filters = [statusFilter];
+  if (args.documentType) {
+    filters.push(eq(safefindCases.documentType, args.documentType));
+  }
+  if (args.partnerId) {
+    filters.push(eq(safefindCases.currentPartnerId, args.partnerId));
+  }
+  if (args.commune) {
+    filters.push(
+      or(
+        eq(safefindCases.foundCommune, args.commune),
+        eq(safefindPartners.commune, args.commune),
+      )!,
+    );
+  }
+  if (nearPartnerIds && nearPartnerIds.length > 0) {
+    filters.push(inArray(safefindCases.currentPartnerId, nearPartnerIds));
+  } else if (nearPartnerIds && nearPartnerIds.length === 0) {
+    return { listings: [], partners: [] };
+  }
+
+  const rows = await db
+    .select({
+      case: safefindCases,
+      partnerId: safefindPartners.id,
+      partnerName: safefindPartners.name,
+      partnerCommune: safefindPartners.commune,
+    })
+    .from(safefindCases)
+    .leftJoin(
+      safefindPartners,
+      eq(safefindCases.currentPartnerId, safefindPartners.id),
+    )
+    .where(and(...filters))
+    .orderBy(desc(safefindCases.updatedAt))
+    .limit(limit);
+
+  const listings: MarketplaceListing[] = rows.map((r) => {
+    const view = toPublicCaseView(r.case);
+    return {
+      ...view,
+      documentNumberLast4: r.case.documentNumberLast4 ?? null,
+      partner:
+        r.partnerId && r.partnerName
+          ? {
+              id: r.partnerId,
+              name: r.partnerName,
+              commune: r.partnerCommune ?? "",
+            }
+          : null,
+    };
+  });
+
+  const partnerRows = await db
+    .select({
+      id: safefindPartners.id,
+      name: safefindPartners.name,
+      commune: safefindPartners.commune,
+    })
+    .from(safefindPartners)
+    .where(eq(safefindPartners.status, "active"))
+    .orderBy(safefindPartners.name)
+    .limit(100);
+
+  return { listings, partners: partnerRows };
+}
+
+export async function listMySafefindCases(args: {
+  userId: string;
+  bucket?: "all" | "active";
+  limit?: number;
+}): Promise<MarketplaceListing[]> {
+  const db = getDb();
+  const limit = Math.min(Math.max(args.limit ?? 40, 1), 80);
+  const ownership = or(
+    eq(safefindCases.ownerUserId, args.userId),
+    eq(safefindCases.initialFinderUserId, args.userId),
+    eq(safefindCases.rewardOwnerUserId, args.userId),
+  )!;
+
+  const filters =
+    args.bucket === "active"
+      ? and(
+          ownership,
+          inArray(safefindCases.status, [...SAFEFIND_ACTIVE_RESTITUTION_STATUSES]),
+        )
+      : ownership;
+
+  const rows = await db
+    .select({
+      case: safefindCases,
+      partnerId: safefindPartners.id,
+      partnerName: safefindPartners.name,
+      partnerCommune: safefindPartners.commune,
+    })
+    .from(safefindCases)
+    .leftJoin(
+      safefindPartners,
+      eq(safefindCases.currentPartnerId, safefindPartners.id),
+    )
+    .where(filters)
+    .orderBy(desc(safefindCases.updatedAt))
+    .limit(limit);
+
+  return rows.map((r) => {
+    const view = toPublicCaseView(r.case);
+    return {
+      ...view,
+      documentNumberLast4: r.case.documentNumberLast4 ?? null,
+      partner:
+        r.partnerId && r.partnerName
+          ? {
+              id: r.partnerId,
+              name: r.partnerName,
+              commune: r.partnerCommune ?? "",
+            }
+          : null,
+    };
+  });
 }
 
 export async function acceptDeposit(args: {
