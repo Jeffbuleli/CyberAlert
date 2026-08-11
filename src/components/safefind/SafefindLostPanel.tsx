@@ -12,6 +12,7 @@ import {
   SAFEFIND_DOC_OPTIONS,
   type SafefindDocOption,
 } from "@/components/safefind/doc-types";
+import { SafefindAssistFields } from "@/components/safefind/SafefindAssistFields";
 
 type LostTab = "declare" | "search";
 
@@ -149,6 +150,14 @@ export function SafefindLostPanel({
       {tab === "declare" ? (
         <>
           <form onSubmit={submitDeclare} className="mt-5 space-y-4">
+            <SafefindAssistFields
+              documentType={documentType}
+              setDocumentType={setDocumentType}
+              setHolderFirstName={setHolderFirstName}
+              setHolderLastName={setHolderLastName}
+              setDocumentNumber={setDocumentNumber}
+              setLocation={setLocation}
+            />
             <fieldset>
               <legend className="text-sm text-[var(--ca-ink-muted)]">Type de pièce</legend>
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">

@@ -394,3 +394,143 @@ async def report(body: Dict[str, Any], _: None = Depends(require_auth)) -> Dict[
         "technical_summary": technical,
         "source_finding_ids": [f.get("id") for f in findings if f.get("id")],
     }
+
+
+# --- SafeFind assist (signals only; rules engine decides) ---
+
+SAFEFIND_PARSE_SYSTEM = (
+    "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Extrais des champs structurés "
+    "depuis une déclaration FR/Lingala. JSON strict: documentType "
+    "(carte_electeur|passeport|permis_conduire|null), locationText, locationPrecision "
+    "(commune|quartier|landmark|gps|null), dateEstimate (YYYY-MM-DD|null), "
+    "timePeriod (morning|afternoon|evening|night|null), visualHints (object), confidence (0-1). "
+    "Ne invente pas de numéro de pièce. Ne décide pas des coordonnées GPS."
+)
+
+SAFEFIND_MATCH_SYSTEM = (
+    "Tu es McBuleli AI SafeFind. Compare deux fiches DÉJÀ MASQUÉES. JSON: potentialMatch (bool), "
+    "confidence (0-1), reasons (string[]), riskFlags (string[]), recommendedAction "
+    "(review|verify|ignore). Jamais ownership proof."
+)
+
+SAFEFIND_ANOMALY_SYSTEM = (
+    "Tu es McBuleli AI SafeFind antifraud. Analyse une chronologie SANS PII. JSON: "
+    "riskFlags (string[]), recommendedAction (review|dispute|lock|continue), "
+    "explanation (string courte FR). Tu signales seulement."
+)
+
+
+async def openai_json(system: str, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not OPENAI_API_KEY:
+        return None
+    payload: Dict[str, Any] = {
+        "model": OPENAI_MODEL,
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
+        ],
+    }
+    async with httpx.AsyncClient(timeout=18.0) as client:
+        res = await client.post(
+            f"{OPENAI_BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        if res.status_code >= 400:
+            return None
+        data = res.json()
+        content = data["choices"][0]["message"]["content"]
+    return json.loads(content)
+
+
+def template_safefind_parse(text: str) -> Dict[str, Any]:
+    t = (text or "").lower()
+    doc = None
+    if "passeport" in t or "passport" in t:
+        doc = "passeport"
+    elif "permis" in t:
+        doc = "permis_conduire"
+    elif "carte" in t or "electeur" in t or "électeur" in t:
+        doc = "carte_electeur"
+    precision = None
+    if any(x in t for x in ("près", "pembeni", "chez", "arrêt", "marché")):
+        precision = "landmark"
+    elif "quartier" in t:
+        precision = "quartier"
+    elif any(x in t for x in ("gombe", "ngaliema", "limete", "kinshasa")):
+        precision = "commune"
+    return {
+        "documentType": doc,
+        "locationText": (text or "")[:200],
+        "locationPrecision": precision,
+        "dateEstimate": None,
+        "timePeriod": None,
+        "visualHints": {},
+        "confidence": 0.4 if doc else 0.2,
+    }
+
+
+@app.post("/v1/safefind/parse-declaration")
+async def safefind_parse_declaration(
+    body: Dict[str, Any],
+    _: None = Depends(require_auth),
+) -> Dict[str, Any]:
+    text = str(body.get("text") or "")[:800]
+    ai = await openai_json(SAFEFIND_PARSE_SYSTEM, {"text": text})
+    return ai or template_safefind_parse(text)
+
+
+@app.post("/v1/safefind/match-assist")
+async def safefind_match_assist(
+    body: Dict[str, Any],
+    _: None = Depends(require_auth),
+) -> Dict[str, Any]:
+    ai = await openai_json(
+        SAFEFIND_MATCH_SYSTEM,
+        {"lost": body.get("lost"), "found": body.get("found")},
+    )
+    if ai:
+        return ai
+    lost = body.get("lost") or {}
+    found = body.get("found") or {}
+    reasons = []
+    conf = 0.2
+    if lost.get("documentType") == found.get("documentType"):
+        reasons.append("same document type")
+        conf += 0.25
+    if lost.get("commune") and lost.get("commune") == found.get("commune"):
+        reasons.append("same area")
+        conf += 0.2
+    potential = conf >= 0.55
+    return {
+        "potentialMatch": potential,
+        "confidence": min(0.9, conf),
+        "reasons": reasons,
+        "riskFlags": [],
+        "recommendedAction": "verify" if potential else "ignore",
+    }
+
+
+@app.post("/v1/safefind/anomaly-hint")
+async def safefind_anomaly_hint(
+    body: Dict[str, Any],
+    _: None = Depends(require_auth),
+) -> Dict[str, Any]:
+    ai = await openai_json(SAFEFIND_ANOMALY_SYSTEM, body)
+    if ai:
+        return ai
+    reasons = body.get("reasons") or []
+    return {
+        "riskFlags": reasons[:6],
+        "recommendedAction": "dispute" if reasons else "continue",
+        "explanation": (
+            "Incohérences: " + ", ".join(map(str, reasons[:4]))
+            if reasons
+            else "Aucune anomalie évidente."
+        ),
+    }

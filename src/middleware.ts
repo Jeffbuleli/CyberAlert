@@ -4,7 +4,7 @@ import { applySecurityHeaders } from "@/lib/security-headers";
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
-  applySecurityHeaders(response.headers);
+  applySecurityHeaders(response.headers, request.nextUrl.pathname);
   return response;
 }
 

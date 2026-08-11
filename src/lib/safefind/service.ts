@@ -20,6 +20,11 @@ import {
 import { evaluateAntifraud } from "./antifraud";
 import { arePotentialDuplicateFounds, computeMatchScore } from "./matching";
 import {
+  applyAiMatchBandBoost,
+  safefindAnomalyHint,
+  safefindMatchAssist,
+} from "./ai-assist";
+import {
   custodyEventHash,
   generateCollectionOtp,
   hashDocumentNumber,
@@ -302,6 +307,27 @@ export async function declareFound(args: {
       geoInconsistent: false,
     });
 
+    let aiAnomaly: Awaited<ReturnType<typeof safefindAnomalyHint>> | null = null;
+    if (antifraud.suspicious) {
+      try {
+        aiAnomaly = await safefindAnomalyHint({
+          reasons: antifraud.reasons,
+          timeline: [
+            {
+              at: linkedExisting.createdAt.toISOString(),
+              event: "case_created",
+            },
+            {
+              at: new Date().toISOString(),
+              event: "concurrent_found_declaration",
+            },
+          ],
+        });
+      } catch {
+        aiAnomaly = null;
+      }
+    }
+
     const [decl] = await db
       .insert(safefindDeclarations)
       .values({
@@ -331,6 +357,17 @@ export async function declareFound(args: {
           ...(linkedExisting.meta ?? {}),
           recoveryFinderUserId: args.userId,
           antifraud: antifraud.reasons,
+          ...(aiAnomaly
+            ? {
+                aiAnomaly: {
+                  riskFlags: aiAnomaly.riskFlags,
+                  recommendedAction: aiAnomaly.recommendedAction,
+                  explanation: aiAnomaly.explanation,
+                  provider: aiAnomaly.provider,
+                  at: new Date().toISOString(),
+                },
+              }
+            : {}),
         },
       })
       .where(eq(safefindCases.id, linkedExisting.id));
@@ -605,7 +642,12 @@ export async function declareLost(args: {
     )
     .limit(50);
 
-  const matches: Array<{ publicId: string; score: number }> = [];
+  const matches: Array<{
+    publicId: string;
+    score: number;
+    aiBoosted?: boolean;
+    aiConfidence?: number;
+  }> = [];
   for (const c of found) {
     const { score } = computeMatchScore(
       {
@@ -618,6 +660,7 @@ export async function declareLost(args: {
         lostCommune: c.lostCommune,
         foundApproxDate: c.foundApproxDate,
         appearanceMeta: c.appearanceMeta as Record<string, unknown>,
+        visualNotes: c.visualNotes,
       },
       {
         documentType: args.documentType,
@@ -631,21 +674,101 @@ export async function declareLost(args: {
         appearanceHints: args.appearanceHints,
       },
     );
+    let finalScore = score;
     if (docHash && c.documentNumberHash === docHash) {
-      matches.push({ publicId: c.publicId, score: Math.max(score, 90) });
-    } else if (score >= SAFEFIND_DEFAULT_CONFIG.MATCH_CANDIDATE_THRESHOLD) {
-      matches.push({ publicId: c.publicId, score });
+      finalScore = Math.max(score, 90);
     }
+    if (finalScore < SAFEFIND_DEFAULT_CONFIG.MATCH_CANDIDATE_THRESHOLD) {
+      continue;
+    }
+
+    let aiBoosted = false;
+    let aiConfidence: number | undefined;
+    if (finalScore >= 60) {
+      try {
+        const ai = await safefindMatchAssist(
+          {
+            documentType: args.documentType,
+            commune: args.commune ?? null,
+            approxDate: args.approxDate
+              ? args.approxDate.toISOString().slice(0, 10)
+              : null,
+            appearance: args.appearanceHints ?? {},
+            visualNotes: null,
+            last4: args.documentNumber
+              ? last4DocumentNumber(args.documentNumber)
+              : null,
+          },
+          {
+            documentType: c.documentType,
+            commune: c.foundCommune ?? c.lostCommune ?? null,
+            approxDate: c.foundApproxDate
+              ? c.foundApproxDate.toISOString().slice(0, 10)
+              : null,
+            appearance: (c.appearanceMeta as Record<string, unknown>) ?? {},
+            visualNotes: c.visualNotes
+              ? String(c.visualNotes).slice(0, 120)
+              : null,
+            last4: c.documentNumberLast4 ?? null,
+          },
+        );
+        const boost = applyAiMatchBandBoost(finalScore, ai);
+        aiBoosted = boost.aiBoosted;
+        aiConfidence = ai.confidence;
+        const prevMeta = (c.meta as Record<string, unknown>) ?? {};
+        await db
+          .update(safefindCases)
+          .set({
+            meta: {
+              ...prevMeta,
+              aiMatch: {
+                potentialMatch: ai.potentialMatch,
+                confidence: ai.confidence,
+                reasons: ai.reasons,
+                riskFlags: ai.riskFlags,
+                recommendedAction: ai.recommendedAction,
+                provider: ai.provider,
+                at: new Date().toISOString(),
+              },
+            },
+            updatedAt: new Date(),
+          })
+          .where(eq(safefindCases.id, c.id));
+      } catch {
+        // AI failure must not break matching
+      }
+    }
+    matches.push({
+      publicId: c.publicId,
+      score: finalScore,
+      aiBoosted,
+      aiConfidence,
+    });
   }
   matches.sort((a, b) => b.score - a.score);
 
   return {
     declarationId: decl.id,
-    candidates: matches.slice(0, 10).map((m) => ({
-      publicId: m.publicId,
-      scoreBand:
-        m.score >= 85 ? "high" : m.score >= 60 ? "medium" : "low",
-    })),
+    candidates: matches.slice(0, 10).map((m) => {
+      const { scoreBand, aiBoosted } = applyAiMatchBandBoost(
+        m.score,
+        m.aiBoosted && m.aiConfidence != null
+          ? {
+              potentialMatch: true,
+              confidence: m.aiConfidence,
+              reasons: [],
+              riskFlags: [],
+              recommendedAction: "verify" as const,
+              provider: "template" as const,
+            }
+          : null,
+      );
+      return {
+        publicId: m.publicId,
+        scoreBand,
+        aiBoosted: aiBoosted || Boolean(m.aiBoosted),
+      };
+    }),
   };
 }
 

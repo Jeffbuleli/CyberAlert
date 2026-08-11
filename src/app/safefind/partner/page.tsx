@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { IdScanCapture } from "@/components/safefind/IdScanCapture";
 
 type CustodyCase = {
   publicId: string;
@@ -72,6 +73,31 @@ export default function SafefindPartnerPage() {
     if (res.ok) refresh();
   }
 
+  async function scanSleeve(token: string) {
+    setMsg(null);
+    const sleeveQrToken = token.trim();
+    if (!sleeveQrToken) {
+      setMsg("Scannez ou collez le QR pochette");
+      return;
+    }
+    const res = await fetch("/api/partner/safefind/storage/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sleeveQrToken }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setMsg(data.error ?? "Scan échoué");
+      return;
+    }
+    if (data.casePublicId) setCasePublicId(String(data.casePublicId).toUpperCase());
+    setMsg(
+      data.storageLabel
+        ? `Pochette · ${data.casePublicId} · ${data.storageLabel}`
+        : `Pochette · ${data.casePublicId ?? "ok"}`,
+    );
+  }
+
   if (error) {
     return (
       <div className="mx-auto max-w-lg px-4 pt-10">
@@ -98,7 +124,7 @@ export default function SafefindPartnerPage() {
           { label: "Recevoir", action: acceptDeposit },
           { label: "Remettre", action: release },
           { label: "Incident", action: reportIncident },
-          { label: "Rafraîchir", action: refresh },
+          { label: "Rafraîchir", action: () => void refresh() },
         ].map((b) => (
           <button
             key={b.label}
@@ -112,6 +138,13 @@ export default function SafefindPartnerPage() {
       </div>
 
       <div className="mt-4 space-y-2">
+        <IdScanCapture
+          sleeveMode
+          label="Scanner QR pochette"
+          onParsed={(f) => {
+            if (f.documentNumber) void scanSleeve(f.documentNumber);
+          }}
+        />
         <input
           className="w-full rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)] px-3 py-2.5 font-mono text-sm"
           placeholder="SF-2026-000001"
