@@ -11,6 +11,7 @@ import {
 import { findNearestPartners } from "./nearby";
 import { haversineKm } from "../geo";
 import { geoMatchSignal } from "./normalize";
+import { rememberPlace } from "./local-cache";
 
 export async function persistLocation(
   input: StructuredLocationInput,
@@ -53,7 +54,26 @@ export async function resolveAndPersist(args: {
   let loc: StructuredLocationInput | null = null;
 
   if (args.mode === "place_id" && args.placeId) {
-    loc = await resolvePlaceId(args.placeId);
+    if (args.latitude != null && args.longitude != null) {
+      loc = {
+        country: "RDC",
+        province: "Kinshasa",
+        city: "Kinshasa",
+        commune: args.commune,
+        quartier: args.quartier,
+        landmark: args.landmark ?? args.address,
+        placeId: args.placeId,
+        latitude: args.latitude,
+        longitude: args.longitude,
+        accuracyMeters: null,
+        precision: args.precision ?? "LANDMARK",
+        source: args.placeId.startsWith("local:") ? "local_cache" : "geoapify",
+        label: args.address ?? args.landmark ?? null,
+        rawQuery: null,
+      };
+    } else {
+      loc = await resolvePlaceId(args.placeId);
+    }
   } else if (args.mode === "geocode" && args.address) {
     loc = googleMapsConfigured()
       ? await geocodeAddress(args.address)
@@ -89,6 +109,7 @@ export async function resolveAndPersist(args: {
   }
 
   if (!loc) throw new Error("location_resolve_failed");
+  await rememberPlace(loc);
   const locationId = await persistLocation(loc);
   let partners: Awaited<ReturnType<typeof findNearestPartners>> = [];
   if (loc.latitude != null && loc.longitude != null) {

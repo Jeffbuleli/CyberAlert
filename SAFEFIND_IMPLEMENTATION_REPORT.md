@@ -306,3 +306,23 @@ npm run test:safefind - scenarios A-E, I, J, K, M, N/O (logique)
 
 ## Tests
 `npm run test:safefind` - 34 pass (location + logistics + core)
+
+---
+
+# EXTENSION V3 - Geoapify LocationProvider (2026-08-12)
+
+Sans budget Google Maps Platform.
+
+| Couche | Choix |
+|--------|-------|
+| Autocomplete / geocode | **Geoapify** (`GEOAPIFY_API_KEY`) — free tier ~3000 credits/jour |
+| Abstraction | `LocationProvider` — swap fournisseur sans réécrire SafeFind |
+| Cache local | `safefind_known_places` (alias Kinshasa, hit_count) |
+| Proximité | PostGIS si dispo, sinon haversine |
+| Offline | commune / GPS / pin — toujours disponibles |
+
+**Pas** SerpAPI / Google payant pour la fondation.
+
+Privacy: seules des chaînes lieu / coords partent chez Geoapify — jamais PII identité.
+
+SQL: `ops/vps/sql/0129_safefind_known_places.sql`

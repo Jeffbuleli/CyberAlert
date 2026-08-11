@@ -35,6 +35,9 @@ type Suggestion = {
   secondaryText: string;
   fullText: string;
   local?: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  provider?: string;
 };
 
 export function LocationPicker({ value, onChange, label }: Props) {
@@ -49,7 +52,7 @@ export function LocationPicker({ value, onChange, label }: Props) {
   );
 
   useEffect(() => {
-    if (mode !== "search" || q.trim().length < 2) {
+    if (mode !== "search" || q.trim().length < 3) {
       setSuggestions([]);
       return;
     }
@@ -63,7 +66,7 @@ export function LocationPicker({ value, onChange, label }: Props) {
       } catch {
         setSuggestions([]);
       }
-    }, 280);
+    }, 400);
     return () => clearTimeout(t);
   }, [q, mode, sessionToken]);
 
@@ -173,10 +176,14 @@ export function LocationPicker({ value, onChange, label }: Props) {
         <div>
           <input
             className="w-full rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface)] px-3 py-2.5 text-sm"
-            placeholder="Marche de..., Rond-point Ngaba..."
+            placeholder="Marche de..., Rond-point Ngaba... (3+ lettres)"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+          <p className="mt-1 text-[10px] text-[var(--ca-ink-muted)]">
+            Lieux locaux + Geoapify / OpenStreetMap. Pas de donnees d&apos;identite
+            envoyees a l&apos;API.
+          </p>
           {suggestions.length > 0 ? (
             <ul className="mt-2 max-h-48 overflow-auto rounded-xl border border-[var(--ca-border)]">
               {suggestions.map((s) => (
@@ -184,13 +191,30 @@ export function LocationPicker({ value, onChange, label }: Props) {
                   <button
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--ca-surface)]"
-                    onClick={() =>
-                      resolve(
-                        s.placeId.startsWith("local:")
-                          ? { mode: "manual", placeId: s.placeId }
-                          : { mode: "place_id", placeId: s.placeId },
-                      )
-                    }
+                    onClick={() => {
+                      if (s.placeId.startsWith("local:commune:")) {
+                        resolve({ mode: "manual", placeId: s.placeId });
+                        return;
+                      }
+                      if (
+                        s.latitude != null &&
+                        s.longitude != null &&
+                        Number.isFinite(s.latitude) &&
+                        Number.isFinite(s.longitude)
+                      ) {
+                        resolve({
+                          mode: "place_id",
+                          placeId: s.placeId,
+                          latitude: s.latitude,
+                          longitude: s.longitude,
+                          landmark: s.primaryText,
+                          precision: "LANDMARK",
+                          address: s.fullText,
+                        });
+                        return;
+                      }
+                      resolve({ mode: "place_id", placeId: s.placeId });
+                    }}
                   >
                     <span className="font-medium">{s.primaryText}</span>
                     <span className="mt-0.5 block text-xs text-[var(--ca-ink-muted)]">

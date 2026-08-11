@@ -435,3 +435,4 @@ export * from "./safefind-schema";
 
 export * from "./safefind-logistics-schema";
 export * from "./safefind-location-schema";
+export * from "./safefind-known-places-schema";

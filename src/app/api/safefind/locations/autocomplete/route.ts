@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSessionUser } from "@/lib/auth/session";
 import {
   autocompletePlaces,
-  googleMapsConfigured,
+  locationProviderConfigured,
 } from "@/lib/safefind/location/places-google";
 import { KINSHASA_COMMUNES } from "@/lib/safefind/location/types";
 
@@ -27,25 +27,32 @@ export async function GET(req: Request) {
   }
 
   const q = parsed.data.q.trim();
-  const google = googleMapsConfigured()
-    ? await autocompletePlaces({
-        input: q,
-        sessionToken: parsed.data.sessionToken,
-      })
-    : [];
+  // local known places + Geoapify (min 3 chars inside provider/facade)
+  const places = await autocompletePlaces({
+    input: q,
+    sessionToken: parsed.data.sessionToken,
+  });
 
-  const local = KINSHASA_COMMUNES.filter((c) =>
-    c.toLowerCase().includes(q.toLowerCase()),
-  ).map((c) => ({
-    placeId: `local:commune:${c}`,
-    primaryText: c,
-    secondaryText: "Commune · Kinshasa",
-    fullText: `${c}, Kinshasa`,
-    local: true as const,
-  }));
+  const communes =
+    q.length >= 2
+      ? KINSHASA_COMMUNES.filter((c) =>
+          c.toLowerCase().includes(q.toLowerCase()),
+        ).map((c) => ({
+          placeId: `local:commune:${c}`,
+          primaryText: c,
+          secondaryText: "Commune · Kinshasa",
+          fullText: `${c}, Kinshasa`,
+          provider: "manual",
+          local: true as const,
+        }))
+      : [];
 
   return NextResponse.json({
-    googleConfigured: googleMapsConfigured(),
-    suggestions: [...google, ...local].slice(0, 10),
+    provider: locationProviderConfigured() ? "geoapify" : "offline",
+    providerConfigured: locationProviderConfigured(),
+    attribution: locationProviderConfigured()
+      ? "Powered by Geoapify / OpenStreetMap"
+      : null,
+    suggestions: [...places, ...communes].slice(0, 10),
   });
 }

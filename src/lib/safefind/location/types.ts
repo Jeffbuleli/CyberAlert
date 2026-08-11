@@ -13,12 +13,16 @@ export const LOCATION_PRECISIONS = [
 export type LocationPrecision = (typeof LOCATION_PRECISIONS)[number];
 
 export const LOCATION_SOURCES = [
-  "google_places",
-  "google_geocode",
+  "geoapify",
+  "local_cache",
   "gps",
   "map_pin",
   "manual_hierarchy",
   "partner_fixed",
+  /** legacy — kept for rows already stored */
+  "google_places",
+  "google_geocode",
+  "serpapi_maps",
 ] as const;
 
 export type LocationSource = (typeof LOCATION_SOURCES)[number];
@@ -45,6 +49,11 @@ export type PlaceSuggestion = {
   primaryText: string;
   secondaryText: string;
   fullText: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  dataId?: string | null;
+  /** local_cache | geoapify | manual */
+  provider?: string;
 };
 
 /** Kinshasa communes seed (admin hierarchy, offline-capable). */
