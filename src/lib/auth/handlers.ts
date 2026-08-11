@@ -24,10 +24,14 @@ const registerSchema = z.object({
 
 async function setSessionCookie(raw: string) {
   const jar = await cookies();
+  const httpsApp =
+    (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").startsWith(
+      "https://",
+    ) || process.env.NODE_ENV === "production";
   jar.set(SESSION_COOKIE, raw, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: httpsApp,
     path: "/",
     maxAge: 14 * 24 * 60 * 60,
   });

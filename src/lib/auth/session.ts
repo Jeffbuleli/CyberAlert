@@ -57,12 +57,24 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       role: users.role,
       emailVerifiedAt: users.emailVerifiedAt,
       expiresAt: sessions.expiresAt,
+      sessionId: sessions.id,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
     .limit(1);
   if (!row) return null;
+
+  // Sliding expiry: refresh if less than 7 days remain (avoids sudden logouts).
+  const msLeft = row.expiresAt.getTime() - Date.now();
+  if (msLeft < 7 * 24 * 60 * 60 * 1000) {
+    const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+    await db
+      .update(sessions)
+      .set({ expiresAt })
+      .where(eq(sessions.id, row.sessionId));
+  }
+
   return {
     id: row.id,
     email: row.email,
