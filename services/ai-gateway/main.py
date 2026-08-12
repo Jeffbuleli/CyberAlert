@@ -422,16 +422,21 @@ SAFEFIND_ANOMALY_SYSTEM = (
 
 SAFEFIND_DOCUMENT_VISION_SYSTEM = (
     "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Analyse une photo de pièce "
-    "d'identité congolaise (carte_electeur, passeport, permis_conduire). "
-    "Extrais les champs et localise les VALEURS sensibles à brouiller (pas les labels). "
-    "JSON strict: documentType (carte_electeur|passeport|permis_conduire|null), "
-    "holderFirstName, holderLastName, holderPostName, documentNumber, birthDate (YYYY-MM-DD|null), "
-    "birthPlace, confidence (0-1), "
-    "cropBox {x,y,w,h} zone utile normalisée 0-1 (page données passeport ou recto carte), "
-    "blurRegions [{x,y,w,h,field}] rectangles normalisés 0-1 sur l'image recadrée pour "
-    "brouiller: numéro document/NN, nom, postnom, prénom, date/lieu naissance, QR, MRZ, "
-    "numéro sous photo. NE PAS inclure la zone photo portrait dans blurRegions. "
-    "Pour passeport: cropBox = page biodata uniquement. Remplace — par -."
+    "d'identité congolaise (carte_electeur, passeport, permis_conduire).\n\n"
+    "Règles RDC SafeFind:\n"
+    "CARTE_ELECTEUR (CENI): Photo à gauche (NE PAS brouiller). "
+    "Numéro National (NN): 11 chiffres, champ NN en haut à droite = documentNumber principal. "
+    "Numéro sous photo: 14 caractères alphanumériques = photoCardNumber (distinct du NN). "
+    "QR CENI: 3 segments / → 14 car. / 11 car. NN / 11 car. bureau de vote. "
+    "Si QR lu: documentNumber = segment NN, jamais le n° 14 car. sous photo.\n"
+    "PASSEPORT biométrique RDC (DERMALOG): cropBox = page biodata uniquement. "
+    "Brouiller n° passeport, noms, dates, MRZ, signature — photo visible.\n"
+    "PERMIS biométrique RDC: recto pour scan; n° permis = documentNumber; photo visible.\n\n"
+    "JSON strict: documentType, holderFirstName, holderLastName, holderPostName, "
+    "documentNumber, photoCardNumber, enrollmentBureauCode, birthDate (YYYY-MM-DD|null), "
+    "birthPlace, qrPayload (texte QR brut si lu), confidence (0-1), "
+    "cropBox {x,y,w,h}, blurRegions [{x,y,w,h,field}] valeurs sensibles uniquement. "
+    "Remplace — par -."
 )
 
 
@@ -622,10 +627,13 @@ async def safefind_parse_document(
 ) -> Dict[str, Any]:
     image_b64 = str(body.get("imageBase64") or "").strip()
     hint = str(body.get("documentTypeHint") or "")
+    qr_payload = str(body.get("qrPayload") or "").strip()
     user_text = (
         f"Type attendu: {hint or 'auto'}. "
         "Lis la pièce, extrais champs et blurRegions (valeurs seulement, photo visible)."
     )
+    if qr_payload:
+        user_text += f"\nQR CENI lu côté client: {qr_payload[:120]}"
     ai = await openai_vision_json(SAFEFIND_DOCUMENT_VISION_SYSTEM, image_b64, user_text)
     if ai:
         return ai
@@ -635,6 +643,8 @@ async def safefind_parse_document(
         "holderLastName": None,
         "holderPostName": None,
         "documentNumber": None,
+        "photoCardNumber": None,
+        "enrollmentBureauCode": None,
         "birthDate": None,
         "birthPlace": None,
         "confidence": 0.15,

@@ -2,12 +2,23 @@
  * McBuleli AI assist for SafeFind - signals only, never ownership/reward authority.
  */
 
+import { DRC_DOCUMENT_VISION_RULES } from "@/lib/safefind/id-scan/drc-doc-knowledge";
+import {
+  parseCeniElecteurQr,
+  resolveCarteElecteurDocumentNumber,
+} from "@/lib/safefind/id-scan/ceni-qr";
+
 export type SafefindParseDocumentResult = {
   documentType: "carte_electeur" | "passeport" | "permis_conduire" | null;
   holderFirstName: string | null;
   holderLastName: string | null;
   holderPostName: string | null;
+  /** Primary ID for matching — carte électeur = NN (11 chiffres), not n° sous photo. */
   documentNumber: string | null;
+  /** Carte électeur: 14 car. alphanum. sous la photo (distinct du NN). */
+  photoCardNumber: string | null;
+  /** Carte électeur: 11 car. bureau de vote (segment QR). */
+  enrollmentBureauCode: string | null;
   birthDate: string | null;
   birthPlace: string | null;
   confidence: number;
@@ -304,11 +315,8 @@ async function callOpenAiJson(
 
 const DOCUMENT_VISION_SYSTEM =
   "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Analyse une photo de pièce " +
-  "d'identité congolaise. JSON strict: documentType, holderFirstName, holderLastName, " +
-  "holderPostName, documentNumber, birthDate (YYYY-MM-DD|null), birthPlace, confidence (0-1), " +
-  "cropBox {x,y,w,h} zone utile 0-1, blurRegions [{x,y,w,h,field}] valeurs sensibles " +
-  "à brouiller (NN, nom, postnom, prénom, dates/lieu naissance, QR, MRZ, n° sous photo). " +
-  "NE PAS brouiller la photo portrait. Passeport: cropBox = page biodata seulement.";
+  "d'identité congolaise.\n\n" +
+  DRC_DOCUMENT_VISION_RULES;
 
 const PARSE_SYSTEM =
   "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Reformule et extrais des champs " +
@@ -434,49 +442,102 @@ function normalizeBlurRegions(raw: unknown): SafefindParseDocumentResult["blurRe
   return out;
 }
 
+function applyCeniQrOverrides(
+  result: Omit<SafefindParseDocumentResult, "provider">,
+  qrPayload: string | null | undefined,
+): Omit<SafefindParseDocumentResult, "provider"> {
+  const qr = qrPayload ? parseCeniElecteurQr(qrPayload) : null;
+  if (!qr && result.documentType !== "carte_electeur") return result;
+
+  return {
+    ...result,
+    documentType: result.documentType ?? "carte_electeur",
+    documentNumber: resolveCarteElecteurDocumentNumber(result.documentNumber, qr),
+    photoCardNumber: result.photoCardNumber ?? qr?.photoCardNumber ?? null,
+    enrollmentBureauCode:
+      result.enrollmentBureauCode ?? qr?.enrollmentBureauCode ?? null,
+  };
+}
+
 export async function safefindParseDocumentImage(args: {
   imageBase64: string;
   documentTypeHint?: string;
+  qrPayload?: string;
 }): Promise<SafefindParseDocumentResult> {
   const hint = args.documentTypeHint ?? "";
-  const userText = `Type attendu: ${hint || "auto"}. Extrais champs et zones à brouiller.`;
+  const qrHint = args.qrPayload?.trim() || "";
+  const userText =
+    `Type attendu: ${hint || "auto"}. Extrais champs et zones à brouiller.` +
+    (qrHint ? `\nQR CENI lu côté client: ${qrHint.slice(0, 120)}` : "");
   const raw =
     (await callGatewayJson("/v1/safefind/parse-document", {
       imageBase64: args.imageBase64,
       documentTypeHint: hint,
+      qrPayload: qrHint || undefined,
     })) ??
     (await callOpenAiVisionJson(DOCUMENT_VISION_SYSTEM, args.imageBase64, userText));
 
   const fallbackType = normalizeDocType(hint);
   if (!raw) {
-    return {
-      documentType: fallbackType,
-      holderFirstName: null,
-      holderLastName: null,
-      holderPostName: null,
-      documentNumber: null,
-      birthDate: null,
-      birthPlace: null,
-      confidence: 0.15,
-      cropBox: { x: 0.04, y: 0.06, w: 0.92, h: 0.88 },
-      blurRegions: [],
-      provider: "template",
-    };
+    const base = applyCeniQrOverrides(
+      {
+        documentType: fallbackType,
+        holderFirstName: null,
+        holderLastName: null,
+        holderPostName: null,
+        documentNumber: null,
+        photoCardNumber: null,
+        enrollmentBureauCode: null,
+        birthDate: null,
+        birthPlace: null,
+        confidence: 0.15,
+        cropBox: { x: 0.04, y: 0.06, w: 0.92, h: 0.88 },
+        blurRegions: [],
+      },
+      qrHint,
+    );
+    return { ...base, provider: "template" };
   }
 
-  return {
-    documentType: normalizeDocType(raw.documentType) ?? fallbackType,
-    holderFirstName: strOrNull(raw.holderFirstName, 64),
-    holderLastName: strOrNull(raw.holderLastName, 64),
-    holderPostName: strOrNull(raw.holderPostName, 64),
-    documentNumber: strOrNull(raw.documentNumber, 64)?.toUpperCase() ?? null,
-    birthDate: strOrNull(raw.birthDate, 10),
-    birthPlace: strOrNull(raw.birthPlace, 120),
-    confidence: Math.max(0, Math.min(1, Number(raw.confidence ?? 0.5))),
-    cropBox: normalizeCropBox(raw.cropBox),
-    blurRegions: normalizeBlurRegions(raw.blurRegions),
-    provider: "mcbuleli-ai",
-  };
+  const aiQrRaw = strOrNull(raw.qrPayload, 200);
+  const ceniFromAi = aiQrRaw ? parseCeniElecteurQr(aiQrRaw) : null;
+  const ceniFromClient = qrHint ? parseCeniElecteurQr(qrHint) : null;
+  const ceniQr = ceniFromClient ?? ceniFromAi;
+
+  let documentNumber = strOrNull(raw.documentNumber, 64)?.toUpperCase() ?? null;
+  let photoCardNumber =
+    strOrNull(raw.photoCardNumber, 20)?.toUpperCase() ?? ceniQr?.photoCardNumber ?? null;
+  let enrollmentBureauCode =
+    strOrNull(raw.enrollmentBureauCode, 20) ?? ceniQr?.enrollmentBureauCode ?? null;
+
+  const docType = normalizeDocType(raw.documentType) ?? fallbackType;
+  if (docType === "carte_electeur" || ceniQr) {
+    documentNumber = resolveCarteElecteurDocumentNumber(documentNumber, ceniQr);
+    if (ceniQr && !photoCardNumber) photoCardNumber = ceniQr.photoCardNumber;
+    if (ceniQr && !enrollmentBureauCode) {
+      enrollmentBureauCode = ceniQr.enrollmentBureauCode;
+    }
+  }
+
+  const merged = applyCeniQrOverrides(
+    {
+      documentType: docType ?? (ceniQr ? "carte_electeur" : null),
+      holderFirstName: strOrNull(raw.holderFirstName, 64),
+      holderLastName: strOrNull(raw.holderLastName, 64),
+      holderPostName: strOrNull(raw.holderPostName, 64),
+      documentNumber,
+      photoCardNumber,
+      enrollmentBureauCode,
+      birthDate: strOrNull(raw.birthDate, 10),
+      birthPlace: strOrNull(raw.birthPlace, 120),
+      confidence: Math.max(0, Math.min(1, Number(raw.confidence ?? 0.5))),
+      cropBox: normalizeCropBox(raw.cropBox),
+      blurRegions: normalizeBlurRegions(raw.blurRegions),
+    },
+    qrHint,
+  );
+
+  return { ...merged, provider: "mcbuleli-ai" };
 }
 
 export async function safefindParseDeclaration(

@@ -39,8 +39,18 @@ export function SafefindAssistFields({
     if (fields.holderFirstName) setHolderFirstName(fields.holderFirstName);
     if (fields.holderLastName) setHolderLastName(fields.holderLastName);
     if (fields.documentNumber) setDocumentNumber(fields.documentNumber);
-    if (fields.birthDate && setVisualNotes) {
-      setVisualNotes(`Année de naissance: ${fields.birthDate.slice(0, 4)}`);
+    if (setVisualNotes) {
+      const notes: string[] = [];
+      if (fields.birthDate) {
+        notes.push(`Année de naissance: ${fields.birthDate.slice(0, 4)}`);
+      }
+      if (fields.documentType === "carte_electeur" && fields.photoCardNumber) {
+        notes.push(`N° carte (sous photo): …${fields.photoCardNumber.slice(-4)}`);
+      }
+      if (fields.enrollmentBureauCode) {
+        notes.push(`Bureau vote: …${fields.enrollmentBureauCode.slice(-4)}`);
+      }
+      if (notes.length) setVisualNotes(notes.join(" · "));
     }
   }
 

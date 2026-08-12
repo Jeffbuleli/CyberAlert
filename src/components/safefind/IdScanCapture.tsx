@@ -7,6 +7,10 @@ import {
   type ParsedIdFields,
 } from "@/lib/safefind/id-scan/parse";
 import {
+  parseCeniElecteurQr,
+  resolveCarteElecteurDocumentNumber,
+} from "@/lib/safefind/id-scan/ceni-qr";
+import {
   applyBlurRegions,
   canvasToJpegDataUrl,
   captureVideoFrame,
@@ -41,6 +45,19 @@ function getBarcodeDetector(): BarcodeDetectorLike | null {
     } catch {
       return null;
     }
+  }
+}
+
+async function detectQrFromCanvas(
+  canvas: HTMLCanvasElement,
+): Promise<string | null> {
+  const detector = getBarcodeDetector();
+  if (!detector) return null;
+  try {
+    const codes = await detector.detect(canvas);
+    return codes.find((c) => c.rawValue)?.rawValue ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -229,12 +246,16 @@ export function IdScanCapture({
       const full = captureVideoFrame(video, 1920);
       let cropped = cropCanvas(full, cropRef.current);
 
+      const qrPayload = await detectQrFromCanvas(cropped);
+      const ceniFromQr = qrPayload ? parseCeniElecteurQr(qrPayload) : null;
+
       const aiRes = await fetch("/api/safefind/ai/parse-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           imageBase64: dataUrlToBase64(canvasToJpegDataUrl(cropped, 0.92)),
           documentTypeHint: docType,
+          qrPayload: qrPayload ?? undefined,
         }),
       });
       const ai = await aiRes.json();
@@ -265,15 +286,24 @@ export function IdScanCapture({
         return;
       }
 
+      const resolvedDocType =
+        (ai.documentType as SafefindDocOption) ?? docType ?? "carte_electeur";
       const fields: ParsedIdFields = {
-        documentType: ai.documentType ?? docType,
+        documentType: ceniFromQr ? "carte_electeur" : resolvedDocType,
         holderFirstName: ai.holderFirstName ?? null,
         holderLastName: ai.holderLastName ?? ai.holderPostName ?? null,
-        documentNumber: ai.documentNumber ?? null,
+        documentNumber: resolveCarteElecteurDocumentNumber(
+          ai.documentNumber,
+          ceniFromQr,
+        ),
+        photoCardNumber:
+          ceniFromQr?.photoCardNumber ?? ai.photoCardNumber ?? null,
+        enrollmentBureauCode:
+          ceniFromQr?.enrollmentBureauCode ?? ai.enrollmentBureauCode ?? null,
         birthDate: ai.birthDate ?? null,
-        source: "photo",
-        confidence: ai.confidence ?? 0.6,
-        rawKind: "photo",
+        source: ceniFromQr ? "qr" : "photo",
+        confidence: Math.max(ai.confidence ?? 0.6, ceniFromQr ? 0.85 : 0),
+        rawKind: ceniFromQr ? "ceni_qr" : "photo",
       };
 
       setPreview(redactedDataUrl);

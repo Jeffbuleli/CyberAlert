@@ -6,6 +6,10 @@ import {
   redactParsedForAi,
 } from "../id-scan/parse";
 import {
+  parseCeniElecteurQr,
+  resolveCarteElecteurDocumentNumber,
+} from "../id-scan/ceni-qr";
+import {
   applyAiMatchBandBoost,
   safefindParseDeclaration,
 } from "../ai-assist";
@@ -53,6 +57,21 @@ describe("SafeFind ID scan parse", () => {
     assert.equal(parsed!.documentType, "permis_conduire");
     assert.equal(parsed!.documentNumber, "012345678");
     assert.equal(parsed!.birthDate, "1985-07-25");
+  });
+
+  it("parses CENI carte électeur QR — documentNumber is NN not photo card number", () => {
+    const qr = "ABCD1234EFGH56/12345678901/98765432109";
+    const parsed = parseIdScanPayload(qr);
+    assert.ok(parsed);
+    assert.equal(parsed!.documentType, "carte_electeur");
+    assert.equal(parsed!.rawKind, "ceni_qr");
+    assert.equal(parsed!.documentNumber, "12345678901");
+    assert.equal(parsed!.photoCardNumber, "ABCD1234EFGH56");
+    assert.equal(parsed!.enrollmentBureauCode, "98765432109");
+    assert.equal(
+      resolveCarteElecteurDocumentNumber("ABCD1234EFGH56", parseCeniElecteurQr(qr)),
+      "12345678901",
+    );
   });
 });
 

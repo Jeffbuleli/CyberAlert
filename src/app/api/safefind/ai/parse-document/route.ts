@@ -8,6 +8,7 @@ import { isSafefindDocType } from "@/lib/safefind/types";
 const bodyZ = z.object({
   imageBase64: z.string().min(100).max(3_000_000),
   documentTypeHint: z.string().optional(),
+  qrPayload: z.string().max(500).optional(),
 });
 
 export async function POST(req: Request) {
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
     const ai = await safefindParseDocumentImage({
       imageBase64: parsed.data.imageBase64,
       documentTypeHint: hint,
+      qrPayload: parsed.data.qrPayload,
     });
 
     let duplicateCheck: {

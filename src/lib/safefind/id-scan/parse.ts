@@ -3,11 +3,20 @@
  * Never sends raw scans to the network - caller confirms fields before submit.
  */
 
+import {
+  parseCeniElecteurQr,
+  resolveCarteElecteurDocumentNumber,
+} from "@/lib/safefind/id-scan/ceni-qr";
+
 export type ParsedIdFields = {
   documentType: "carte_electeur" | "passeport" | "permis_conduire" | null;
   holderFirstName: string | null;
   holderLastName: string | null;
   documentNumber: string | null;
+  /** Carte électeur: 14 car. sous la photo (≠ NN). */
+  photoCardNumber?: string | null;
+  /** Carte électeur: 11 car. bureau de vote (segment QR). */
+  enrollmentBureauCode?: string | null;
   birthDate: string | null;
   source: "mrz" | "qr" | "barcode" | "manual" | "photo";
   confidence: number;
@@ -119,6 +128,22 @@ export function parseQrOrBarcodePayload(raw: string): ParsedIdFields | null {
       source: "qr",
       confidence: 0.95,
       rawKind: "sleeve",
+    };
+  }
+
+  const ceniQr = parseCeniElecteurQr(text);
+  if (ceniQr) {
+    return {
+      documentType: "carte_electeur",
+      holderFirstName: null,
+      holderLastName: null,
+      documentNumber: ceniQr.nationalNumber,
+      photoCardNumber: ceniQr.photoCardNumber,
+      enrollmentBureauCode: ceniQr.enrollmentBureauCode,
+      birthDate: null,
+      source: "qr",
+      confidence: 0.95,
+      rawKind: "ceni_qr",
     };
   }
 
