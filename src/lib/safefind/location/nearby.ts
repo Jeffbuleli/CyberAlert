@@ -49,7 +49,7 @@ export async function findNearestPartners(args: {
     distanceKm: number;
     capacityStatus: string | null;
     securityScore: number;
-    estimatedTransportCostCdf: number | null;
+    address?: string | null;
   }>
 > {
   const limit = args.limit ?? 5;
@@ -64,6 +64,7 @@ export async function findNearestPartners(args: {
           id,
           name,
           commune,
+          address,
           security_score,
           capacity_status,
           storage_capacity,
@@ -85,11 +86,11 @@ export async function findNearestPartners(args: {
           id: String(r.id),
           name: String(r.name),
           commune: String(r.commune),
+          address: r.address != null ? String(r.address) : null,
           distanceKm: Number(r.distance_km),
           capacityStatus:
             r.capacity_status != null ? String(r.capacity_status) : null,
           securityScore: Number(r.security_score ?? 50),
-          estimatedTransportCostCdf: null as number | null,
         }))
         .filter((r) => Number.isFinite(r.distanceKm) && r.distanceKm <= maxKm)
         .slice(0, limit);
@@ -118,6 +119,8 @@ export async function findNearestPartners(args: {
     documentTypesSupported: p.documentTypesSupported as string[] | null,
   }));
 
+  const addressById = new Map(partners.map((p) => [p.id, p.address]));
+
   const ranked = rankNearbyPartners({
     origin: { lat: args.lat, lng: args.lng },
     partners: candidates,
@@ -129,6 +132,7 @@ export async function findNearestPartners(args: {
     id: p.id,
     name: p.name,
     commune: p.commune,
+    address: addressById.get(p.id) ?? null,
     distanceKm:
       p.distanceKm ??
       haversineKm(
@@ -137,6 +141,5 @@ export async function findNearestPartners(args: {
       ),
     capacityStatus: p.capacityStatus ?? null,
     securityScore: p.securityScore,
-    estimatedTransportCostCdf: p.estimatedTransportCostCdf,
   }));
 }

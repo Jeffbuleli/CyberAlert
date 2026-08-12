@@ -71,6 +71,8 @@ export async function POST(req: Request) {
       declarationId: result.declarationId,
       casePublicId: result.casePublicId,
       depositHintPartnerId: result.depositHintPartnerId,
+      depositPartner:
+        "depositPartner" in result ? result.depositPartner : null,
       nearbyPartners: "nearbyPartners" in result ? result.nearbyPartners : [],
     });
   } catch (e) {

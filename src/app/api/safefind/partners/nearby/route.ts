@@ -30,8 +30,8 @@ export async function GET(req: Request) {
         id: p.id,
         name: p.name,
         commune: p.commune,
+        address: p.address ?? null,
         distanceKm: p.distanceKm,
-        estimatedTransportCostCdf: p.estimatedTransportCostCdf,
         securityScore: p.securityScore,
         capacityStatus: p.capacityStatus,
       })),
@@ -72,15 +72,18 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     engine: "commune_fallback",
-    partners: ranked.slice(0, 20).map((p) => ({
-      id: p.id,
-      name: p.name,
-      commune: p.commune,
-      distanceKm: p.distanceKm,
-      estimatedTransportCostCdf: p.estimatedTransportCostCdf,
-      securityScore: p.securityScore,
-      openingHours: p.openingHours,
-      capacityStatus: p.capacityStatus,
-    })),
+    partners: ranked.slice(0, 20).map((p) => {
+      const row = filtered.find((r) => r.id === p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        commune: p.commune,
+        address: row?.address ?? null,
+        distanceKm: p.distanceKm,
+        securityScore: p.securityScore,
+        openingHours: p.openingHours,
+        capacityStatus: p.capacityStatus,
+      };
+    }),
   });
 }

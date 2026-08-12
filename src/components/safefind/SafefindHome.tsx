@@ -503,7 +503,13 @@ export function SafefindHome() {
                   showHeading={false}
                 />
               ) : (
-                <SafefindFoundPanel showHeading={false} />
+                <SafefindFoundPanel
+                  showHeading={false}
+                  onSuccess={() => {
+                    setComposeOpen(false);
+                    setHubTab("mine");
+                  }}
+                />
               )}
             </motion.div>
           </motion.div>

@@ -14,7 +14,26 @@ import {
 } from "@/components/safefind/doc-types";
 import { SafefindAssistFields } from "@/components/safefind/SafefindAssistFields";
 
-export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boolean }) {
+type DepositPartner = {
+  id: string;
+  name: string;
+  commune: string;
+  address: string;
+};
+
+type DoneState = {
+  message: string;
+  casePublicId: string | null;
+  depositPartner: DepositPartner | null;
+};
+
+export function SafefindFoundPanel({
+  showHeading = true,
+  onSuccess,
+}: {
+  showHeading?: boolean;
+  onSuccess?: (payload: DoneState) => void;
+}) {
   const router = useRouter();
   const [documentType, setDocumentType] = useState<SafefindDocOption>("carte_electeur");
   const [holderFirstName, setHolderFirstName] = useState("");
@@ -30,11 +49,7 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
   const [possessionMode, setPossessionMode] = useState<"held" | "deposited">("held");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{
-    message: string;
-    casePublicId: string | null;
-    nearbyPartners: Array<{ id: string; name: string; distanceKm: number }>;
-  } | null>(null);
+  const [done, setDone] = useState<DoneState | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,13 +86,30 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
         setError(data.error === "kyc_required" ? "Vérification email requise" : data.error ?? "Erreur");
         return;
       }
-      setDone({
+
+      const localPartner = selectedPartnerId
+        ? location.partners.find((p) => p.id === selectedPartnerId)
+        : null;
+      const depositPartner: DepositPartner | null =
+        data.depositPartner ??
+        (localPartner
+          ? {
+              id: localPartner.id,
+              name: localPartner.name,
+              commune: localPartner.commune,
+              address: "",
+            }
+          : null);
+
+      const next: DoneState = {
         message: data.message,
-        casePublicId: data.casePublicId,
-        nearbyPartners: data.nearbyPartners ?? location.partners,
-      });
+        casePublicId: data.casePublicId ?? null,
+        depositPartner,
+      };
+      setDone(next);
+      onSuccess?.(next);
       if (data.casePublicId) {
-        router.prefetch(`/safefind/cases/${data.casePublicId}`);
+        router.prefetch("/?view=mine&mode=found");
       }
     } catch {
       setError("Erreur réseau");
@@ -104,22 +136,47 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
           {done.casePublicId ? (
             <p className="mt-3 font-mono text-lg text-[var(--ca-accent)]">{done.casePublicId}</p>
           ) : null}
-          {done.nearbyPartners?.length ? (
-            <ul className="mt-4 space-y-1 text-sm text-[var(--ca-ink-muted)]">
-              <li className="font-medium text-[var(--ca-ink)]">Déposez au point le plus proche</li>
-              {done.nearbyPartners.slice(0, 5).map((p) => (
-                <li key={p.id}>
-                  {p.name} - {Number(p.distanceKm).toFixed(1)} km
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <Link
-            href="/safefind/partners"
-            className="mt-5 inline-flex rounded-xl bg-[var(--ca-accent)] px-4 py-2.5 text-sm font-medium text-white"
-          >
-            Voir les points
-          </Link>
+
+          {done.depositPartner ? (
+            <div className="mt-4 rounded-xl border border-emerald-600/30 bg-emerald-600/5 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
+                Point de dépôt assigné
+              </p>
+              <p className="mt-1 text-base font-semibold text-[var(--ca-ink)]">
+                {done.depositPartner.name}
+              </p>
+              <p className="text-sm text-[var(--ca-ink-muted)]">
+                {done.depositPartner.commune}
+                {done.depositPartner.address ? ` · ${done.depositPartner.address}` : ""}
+              </p>
+              <p className="mt-2 text-xs text-[var(--ca-ink-muted)]">
+                Présentez ce dossier au guichet SafeFind du point ci-dessus. Le dépôt est
+                gratuit pour le trouveur.
+              </p>
+            </div>
+          ) : (
+            <p className="mt-4 text-xs text-[var(--ca-ink-muted)]">
+              Choisissez un Point SafeFind lors de votre prochaine déclaration pour lier le
+              dépôt à votre dossier.
+            </p>
+          )}
+
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <Link
+              href="/?view=mine&mode=found"
+              className="inline-flex flex-1 justify-center rounded-xl bg-[var(--ca-accent)] px-4 py-2.5 text-sm font-medium text-white"
+            >
+              Voir mon dossier
+            </Link>
+            {done.depositPartner ? (
+              <Link
+                href={`/safefind/partners?partner=${done.depositPartner.id}`}
+                className="inline-flex flex-1 justify-center rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface)] px-4 py-2.5 text-sm font-medium text-[var(--ca-ink)]"
+              >
+                Détails du point
+              </Link>
+            ) : null}
+          </div>
         </div>
       ) : (
         <form onSubmit={submit} className="mt-5 space-y-4">

@@ -457,14 +457,18 @@ export async function declareFound(args: {
       );
     }
 
+    const depositPartner = args.partnerIdHint
+      ? await getPartnerDepositView(args.partnerIdHint)
+      : null;
+
     // Neutral response - no hint of existing case ownership.
     return {
       ok: true as const,
       neutral: true as const,
       message: decision.neutralMessageForRecoveryFinder,
       declarationId: decl.id,
-      // Fresh-looking public id for deposit flow UX only (internal still linked)
       depositHintPartnerId: args.partnerIdHint ?? null,
+      depositPartner,
       casePublicId: null as string | null,
       linkedSilently: true as const,
     };
@@ -649,14 +653,24 @@ export async function declareFound(args: {
     }
   }
 
+  const depositHintPartnerId =
+    args.partnerIdHint ?? nearbyPartners[0]?.id ?? null;
+  const depositPartner = depositHintPartnerId
+    ? await getPartnerDepositView(depositHintPartnerId)
+    : null;
+
   return {
     ok: true as const,
     neutral: false as const,
-    message: "Declaration enregistree. Deposez le document dans un Point SafeFind.",
+    message:
+      depositPartner
+        ? `Déclaration enregistrée. Déposez le document au Point SafeFind « ${depositPartner.name} » (${depositPartner.commune}).`
+        : "Déclaration enregistrée. Déposez le document dans un Point SafeFind.",
     declarationId: decl.id,
     casePublicId: publicId,
     caseId: caseRow.id,
-    depositHintPartnerId: args.partnerIdHint ?? nearbyPartners[0]?.id ?? null,
+    depositHintPartnerId,
+    depositPartner,
     nearbyPartners,
     linkedSilently: false as const,
   };
@@ -1039,8 +1053,36 @@ export async function listMySafefindCases(args: {
     .orderBy(desc(safefindCases.updatedAt))
     .limit(limit);
 
+  const metaPartnerIds = new Set<string>();
+  for (const r of rows) {
+    if (r.partnerId) continue;
+    const meta = (r.case.meta ?? {}) as Record<string, unknown>;
+    const pid = meta.selectedPartnerId ?? meta.suggestedPartnerId;
+    if (typeof pid === "string") metaPartnerIds.add(pid);
+  }
+  const metaPartners =
+    metaPartnerIds.size > 0
+      ? await db
+          .select({
+            id: safefindPartners.id,
+            name: safefindPartners.name,
+            commune: safefindPartners.commune,
+          })
+          .from(safefindPartners)
+          .where(inArray(safefindPartners.id, [...metaPartnerIds]))
+      : [];
+  const metaPartnerById = new Map(metaPartners.map((p) => [p.id, p]));
+
   return rows.map((r) => {
     const view = toPublicCaseView(r.case);
+    const meta = (r.case.meta ?? {}) as Record<string, unknown>;
+    const selectedId =
+      typeof meta.selectedPartnerId === "string"
+        ? meta.selectedPartnerId
+        : typeof meta.suggestedPartnerId === "string"
+          ? meta.suggestedPartnerId
+          : null;
+    const fallback = selectedId ? metaPartnerById.get(selectedId) : null;
     return {
       ...view,
       documentNumberLast4: r.case.documentNumberLast4 ?? null,
@@ -1051,7 +1093,13 @@ export async function listMySafefindCases(args: {
               name: r.partnerName,
               commune: r.partnerCommune ?? "",
             }
-          : null,
+          : fallback
+            ? {
+                id: fallback.id,
+                name: fallback.name,
+                commune: fallback.commune ?? "",
+              }
+            : null,
     };
   });
 }
@@ -1590,6 +1638,35 @@ export async function releaseToOwner(args: {
   }
 
   return { status: "RETURNED" as const };
+}
+
+export type PartnerDepositView = {
+  id: string;
+  name: string;
+  commune: string;
+  address: string;
+};
+
+export async function getPartnerDepositView(
+  partnerId: string,
+): Promise<PartnerDepositView | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      id: safefindPartners.id,
+      name: safefindPartners.name,
+      commune: safefindPartners.commune,
+      address: safefindPartners.address,
+    })
+    .from(safefindPartners)
+    .where(
+      and(
+        eq(safefindPartners.id, partnerId),
+        eq(safefindPartners.status, "active"),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getPartnerAgent(userId: string) {
