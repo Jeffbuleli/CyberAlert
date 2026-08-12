@@ -68,8 +68,10 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       message: result.message,
-      declarationId: result.declarationId,
+      declarationId: "declarationId" in result ? result.declarationId : null,
       casePublicId: result.casePublicId,
+      alreadyExists: "alreadyExists" in result ? result.alreadyExists : false,
+      updated: "updated" in result ? result.updated : false,
       depositHintPartnerId: result.depositHintPartnerId,
       depositPartner:
         "depositPartner" in result ? result.depositPartner : null,
@@ -79,6 +81,16 @@ export async function POST(req: Request) {
     const msg = e instanceof Error ? e.message : "error";
     if (msg === "kyc_required") {
       return NextResponse.json({ error: "kyc_required" }, { status: 403 });
+    }
+    if (msg === "document_already_registered") {
+      return NextResponse.json(
+        {
+          error: "document_already_registered",
+          message:
+            "Cette pièce est déjà enregistrée dans SafeFind. Si vous l'avez trouvée, contactez un Point partenaire.",
+        },
+        { status: 409 },
+      );
     }
     return NextResponse.json({ error: "safefind_found_failed" }, { status: 500 });
   }

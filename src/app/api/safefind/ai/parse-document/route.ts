@@ -44,6 +44,7 @@ export async function POST(req: Request) {
       duplicateCheck = await checkDocumentAlreadyListed({
         documentNumber: ai.documentNumber,
         documentType: ai.documentType ?? undefined,
+        userId: session.id,
       });
     }
 

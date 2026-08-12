@@ -160,6 +160,26 @@ export const SAFEFIND_DEFAULT_CONFIG = {
   ORPHAN_ACTION_DAYS: 90,
 } as const;
 
+export const SAFEFIND_FINDER_EDITABLE_STATUSES = [
+  "FOUND",
+  "REGISTERED",
+  "HELD_BY_FINDER",
+  "DEPOSIT_PENDING",
+] as const;
+
+export type SafefindFinderEditableStatus =
+  (typeof SAFEFIND_FINDER_EDITABLE_STATUSES)[number];
+
+export function isFinderEditableStatus(status: string): status is SafefindFinderEditableStatus {
+  return (SAFEFIND_FINDER_EDITABLE_STATUSES as readonly string[]).includes(status);
+}
+
+export const SAFEFIND_TERMINAL_CASE_STATUSES = [
+  "CANCELLED",
+  "EXPIRED",
+  "REWARD_RELEASED",
+] as const;
+
 export const SAFEFIND_DEFAULT_REWARDS: Record<
   SafefindDocType,
   { base: string; maxBonus: string }

@@ -34,6 +34,7 @@ import {
 } from "./privacy";
 import { findNearestPartners } from "./location/nearby";
 import { computeRestitutionFees } from "./fees";
+import { classifyFoundDeclarationCollision } from "./found-collision";
 import { onDocumentRefoundDecision } from "./reward-ownership";
 import { assertTransition, canTransition } from "./state-machine";
 import {
@@ -41,6 +42,7 @@ import {
   SAFEFIND_DEFAULT_REWARDS,
   type SafefindCaseStatus,
   type SafefindDocType,
+  isFinderEditableStatus,
 } from "./types";
 
 function isEmailVerified(v: Date | null | undefined): boolean {
@@ -188,10 +190,19 @@ function docLabelShort(documentType: SafefindDocType): string {
 export async function checkDocumentAlreadyListed(args: {
   documentNumber: string;
   documentType?: SafefindDocType;
-}): Promise<{ alreadyListed: boolean; message: string | null }> {
+  userId?: string;
+}): Promise<{
+  alreadyListed: boolean;
+  ownCase: boolean;
+  casePublicId: string | null;
+  message: string | null;
+}> {
   const db = getDb();
   const docHash = hashDocumentNumber(args.documentNumber);
-  const filters = [eq(safefindCases.documentNumberHash, docHash)];
+  const filters = [
+    eq(safefindCases.documentNumberHash, docHash),
+    sql`${safefindCases.status} not in ('CANCELLED','EXPIRED','REWARD_RELEASED')`,
+  ];
   if (args.documentType) {
     filters.push(eq(safefindCases.documentType, args.documentType));
   }
@@ -199,22 +210,193 @@ export async function checkDocumentAlreadyListed(args: {
     .select({
       publicId: safefindCases.publicId,
       status: safefindCases.status,
+      initialFinderUserId: safefindCases.initialFinderUserId,
     })
+    .from(safefindCases)
+    .where(and(...filters))
+    .limit(1);
+  if (!hit) {
+    return {
+      alreadyListed: false,
+      ownCase: false,
+      casePublicId: null,
+      message: null,
+    };
+  }
+
+  const ownCase =
+    args.userId != null && hit.initialFinderUserId === args.userId;
+
+  if (ownCase) {
+    return {
+      alreadyListed: true,
+      ownCase: true,
+      casePublicId: hit.publicId,
+      message: isFinderEditableStatus(hit.status)
+        ? `Dossier ${hit.publicId} déjà enregistré. Vous pouvez corriger les informations ci-dessous.`
+        : `Dossier ${hit.publicId} déjà actif. Consultez Mes dossiers.`,
+    };
+  }
+
+  return {
+    alreadyListed: true,
+    ownCase: false,
+    casePublicId: null,
+    message:
+      "Une fiche similaire existe déjà dans SafeFind. Vérifiez le Marketplace ou contactez un Point partenaire.",
+  };
+}
+
+type DeclareFoundInput = {
+  userId: string;
+  documentType: SafefindDocType;
+  holderFirstName?: string;
+  holderLastName?: string;
+  documentNumber?: string;
+  visualNotes?: string;
+  appearanceMeta?: Record<string, unknown>;
+  commune?: string;
+  quartier?: string;
+  approxDate?: Date;
+  partnerIdHint?: string;
+  possessionMode?: "held" | "deposited";
+  locationId?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationPrecision?: string;
+  previewUrl?: string;
+  previewToken?: string;
+};
+
+async function findActiveCaseByDocumentHash(args: {
+  docHash: string;
+  documentType: SafefindDocType;
+}) {
+  const db = getDb();
+  const [hit] = await db
+    .select()
     .from(safefindCases)
     .where(
       and(
-        ...filters,
+        eq(safefindCases.documentNumberHash, args.docHash),
+        eq(safefindCases.documentType, args.documentType),
         sql`${safefindCases.status} not in ('CANCELLED','EXPIRED','REWARD_RELEASED')`,
       ),
     )
     .limit(1);
-  if (!hit) {
-    return { alreadyListed: false, message: null };
+  return hit ?? null;
+}
+
+async function resumeExistingFinderCase(args: {
+  userId: string;
+  caseRow: typeof safefindCases.$inferSelect;
+  input: DeclareFoundInput;
+  policy: Awaited<ReturnType<typeof activeRewardPolicy>>;
+}) {
+  const db = getDb();
+  const { caseRow, input, policy } = args;
+  const previewUrl = input.previewUrl ?? null;
+  const prevMeta = (caseRow.meta ?? {}) as Record<string, unknown>;
+  const meta: Record<string, unknown> = { ...prevMeta };
+
+  if (previewUrl) {
+    meta.previewUrl = previewUrl;
+    meta.previewToken = input.previewToken ?? null;
+    meta.listingSummary = `${docLabelShort(input.documentType)} - photo marketplace`;
   }
+  if (input.partnerIdHint) {
+    meta.selectedPartnerId = input.partnerIdHint;
+    meta.suggestedPartnerId = input.partnerIdHint;
+  }
+
+  const feeBreakdown = computeRestitutionFees(
+    input.documentType,
+    policy?.baseReward ?? caseRow.rewardAmount ?? null,
+  );
+  meta.feeBreakdown = feeBreakdown;
+
+  const mediaRefs = previewUrl
+    ? [{ kind: "preview", key: previewUrl, redacted: true as const }]
+    : (caseRow.mediaRefs ?? []);
+
+  let nextStatus = caseRow.status as SafefindCaseStatus;
+  const possession = input.possessionMode ?? (input.partnerIdHint ? "deposited" : "held");
+  let heldByFinder = caseRow.heldByFinder;
+
+  if (possession === "held") {
+    nextStatus = "HELD_BY_FINDER";
+    heldByFinder = true;
+  } else if (input.partnerIdHint) {
+    nextStatus = "DEPOSIT_PENDING";
+    heldByFinder = false;
+  }
+
+  await db
+    .update(safefindCases)
+    .set({
+      holderFirstName: input.holderFirstName ?? caseRow.holderFirstName,
+      holderLastName: input.holderLastName ?? caseRow.holderLastName,
+      documentNumberLast4:
+        input.documentNumber != null
+          ? last4DocumentNumber(input.documentNumber)
+          : caseRow.documentNumberLast4,
+      visualNotes: input.visualNotes ?? caseRow.visualNotes,
+      appearanceMeta: input.appearanceMeta ?? caseRow.appearanceMeta,
+      foundCommune: input.commune ?? caseRow.foundCommune,
+      foundQuartier: input.quartier ?? caseRow.foundQuartier,
+      foundLocationId: input.locationId ?? caseRow.foundLocationId,
+      rewardPolicyId: policy?.id ?? caseRow.rewardPolicyId,
+      rewardAmount: policy?.baseReward ?? caseRow.rewardAmount,
+      rewardCurrency: policy?.currency ?? caseRow.rewardCurrency ?? "CDF",
+      status: nextStatus,
+      heldByFinder,
+      mediaRefs,
+      meta,
+      updatedAt: new Date(),
+    })
+    .where(eq(safefindCases.id, caseRow.id));
+
+  if (input.partnerIdHint && input.partnerIdHint !== prevMeta.selectedPartnerId) {
+    await appendCustodyEvent({
+      caseId: caseRow.id,
+      eventType: "PARTNER_SELECTED",
+      actorUserId: args.userId,
+      actorRole: "finder",
+      partnerId: input.partnerIdHint,
+      previousValue: { partnerId: prevMeta.selectedPartnerId ?? null },
+      newValue: { status: nextStatus },
+    });
+  }
+
+  await writeAudit({
+    caseId: caseRow.id,
+    action: "DOCUMENT_FOUND",
+    actorUserId: args.userId,
+    meta: { resume: true, updatedFields: true },
+  });
+
+  const depositHintPartnerId =
+    input.partnerIdHint ??
+    (typeof meta.selectedPartnerId === "string" ? meta.selectedPartnerId : null) ??
+    (typeof meta.suggestedPartnerId === "string" ? meta.suggestedPartnerId : null);
+  const depositPartner = depositHintPartnerId
+    ? await getPartnerDepositView(depositHintPartnerId)
+    : null;
+
   return {
-    alreadyListed: true,
-    message:
-      "Une fiche similaire existe déjà dans SafeFind. Vérifiez le Marketplace ou contactez un Point partenaire.",
+    ok: true as const,
+    alreadyExists: true as const,
+    updated: true as const,
+    neutral: false as const,
+    message: depositPartner
+      ? `Dossier ${caseRow.publicId} déjà enregistré — informations mises à jour. Déposez au Point « ${depositPartner.name} » (${depositPartner.commune}).`
+      : `Dossier ${caseRow.publicId} déjà enregistré — informations mises à jour.`,
+    casePublicId: caseRow.publicId,
+    caseId: caseRow.id,
+    depositHintPartnerId,
+    depositPartner,
+    nearbyPartners: [] as Awaited<ReturnType<typeof findNearestPartners>>,
+    linkedSilently: false as const,
   };
 }
 
@@ -276,15 +458,89 @@ export async function declareFound(args: {
     ? last4DocumentNumber(args.documentNumber)
     : null;
 
-  // Background match against existing deposited cases - never reveal to finder.
+  // Match against active cases — branch by collision type (own resume vs collusion).
   let linkedExisting: typeof safefindCases.$inferSelect | null = null;
   if (docHash) {
-    const [hit] = await db
-      .select()
-      .from(safefindCases)
-      .where(eq(safefindCases.documentNumberHash, docHash))
-      .limit(1);
-    if (hit) linkedExisting = hit;
+    linkedExisting = await findActiveCaseByDocumentHash({
+      docHash,
+      documentType: args.documentType,
+    });
+  }
+
+  const policy = await activeRewardPolicy(args.documentType);
+
+  if (linkedExisting) {
+    const collision = classifyFoundDeclarationCollision({
+      declarantUserId: args.userId,
+      existing: {
+        initialFinderUserId: linkedExisting.initialFinderUserId,
+        status: linkedExisting.status,
+        currentPartnerId: linkedExisting.currentPartnerId,
+      },
+    });
+
+    if (collision === "same_finder_resume") {
+      return resumeExistingFinderCase({
+        userId: args.userId,
+        caseRow: linkedExisting,
+        input: args,
+        policy,
+      });
+    }
+
+    if (collision === "same_finder_readonly") {
+      const depositHintPartnerId =
+        args.partnerIdHint ??
+        (typeof (linkedExisting.meta as Record<string, unknown>)?.selectedPartnerId ===
+        "string"
+          ? ((linkedExisting.meta as Record<string, unknown>).selectedPartnerId as string)
+          : null);
+      const depositPartner = depositHintPartnerId
+        ? await getPartnerDepositView(depositHintPartnerId)
+        : null;
+      return {
+        ok: true as const,
+        alreadyExists: true as const,
+        updated: false as const,
+        neutral: false as const,
+        message: `Dossier ${linkedExisting.publicId} déjà actif. Consultez Mes dossiers — les modifications ne sont plus possibles à ce stade.`,
+        casePublicId: linkedExisting.publicId,
+        caseId: linkedExisting.id,
+        depositHintPartnerId,
+        depositPartner,
+        nearbyPartners: [],
+        linkedSilently: false as const,
+      };
+    }
+
+    if (collision === "cross_finder_concurrent") {
+      await db.insert(safefindMatchGroups).values({
+        status: "open",
+        caseIds: [linkedExisting.id],
+        signals: {
+          kind: "concurrent_found",
+          declarantUserId: args.userId,
+          at: new Date().toISOString(),
+        },
+      });
+      await db.insert(safefindDeclarations).values({
+        caseId: linkedExisting.id,
+        kind: "found",
+        declarantUserId: args.userId,
+        documentType: args.documentType,
+        payload: { concurrent: true },
+        commune: args.commune ?? null,
+        quartier: args.quartier ?? null,
+        status: "duplicate_candidate",
+      });
+      await writeAudit({
+        caseId: linkedExisting.id,
+        action: "DOCUMENT_FOUND",
+        actorUserId: args.userId,
+        meta: { concurrentFoundBlocked: true },
+      });
+      throw new Error("document_already_registered");
+    }
   }
 
   if (!linkedExisting && args.holderLastName) {
@@ -329,9 +585,8 @@ export async function declareFound(args: {
     }
   }
 
-  const policy = await activeRewardPolicy(args.documentType);
-
   if (linkedExisting) {
+    // cross_finder_refound — document reappears after partner custody (or name match)
     const hadCustody = Boolean(linkedExisting.currentPartnerId);
     const decision = onDocumentRefoundDecision({
       initialFinderUserId: linkedExisting.initialFinderUserId,

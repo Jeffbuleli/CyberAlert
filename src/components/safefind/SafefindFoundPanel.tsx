@@ -25,6 +25,8 @@ type DoneState = {
   message: string;
   casePublicId: string | null;
   depositPartner: DepositPartner | null;
+  alreadyExists: boolean;
+  updated: boolean;
 };
 
 export function SafefindFoundPanel({
@@ -83,7 +85,20 @@ export function SafefindFoundPanel({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error === "kyc_required" ? "Vérification email requise" : data.error ?? "Erreur");
+        if (data.error === "document_already_registered") {
+          setError(
+            data.message ??
+              "Cette pièce est déjà enregistrée dans SafeFind.",
+          );
+          return;
+        }
+        setError(
+          data.error === "kyc_required"
+            ? "Vérification email requise"
+            : typeof data.message === "string"
+              ? data.message
+              : (data.error ?? "Erreur"),
+        );
         return;
       }
 
@@ -105,6 +120,8 @@ export function SafefindFoundPanel({
         message: data.message,
         casePublicId: data.casePublicId ?? null,
         depositPartner,
+        alreadyExists: Boolean(data.alreadyExists),
+        updated: Boolean(data.updated),
       };
       setDone(next);
       onSuccess?.(next);
@@ -132,6 +149,12 @@ export function SafefindFoundPanel({
 
       {done ? (
         <div className="mt-5 rounded-2xl border border-[var(--ca-accent)]/30 bg-[var(--ca-surface-raised)] p-5">
+          {done.alreadyExists ? (
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-amber-700">
+              Dossier déjà enregistré
+              {done.updated ? " · mis à jour" : ""}
+            </p>
+          ) : null}
           <p className="text-sm leading-relaxed text-[var(--ca-ink)]">{done.message}</p>
           {done.casePublicId ? (
             <p className="mt-3 font-mono text-lg text-[var(--ca-accent)]">{done.casePublicId}</p>
