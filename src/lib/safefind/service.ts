@@ -1430,12 +1430,17 @@ export async function acceptDeposit(args: {
   }
 
   const prevPartner = caseRow.currentPartnerId;
+  const publishedMeta = {
+    ...(caseRow.meta ?? {}),
+    marketplacePublishedAt: new Date().toISOString(),
+  };
   const [updated] = await db
     .update(safefindCases)
     .set({
       status: "DEPOSITED_AT_PARTNER",
       currentPartnerId: agent.partnerId,
       heldByFinder: false,
+      meta: publishedMeta,
       updatedAt: new Date(),
     })
     .where(eq(safefindCases.id, caseRow.id))
@@ -1461,6 +1466,7 @@ export async function acceptDeposit(args: {
     await notifySafe(caseRow.initialFinderUserId, "safefind_deposit_confirmed", {
       casePublicId: caseRow.publicId,
       partnerId: agent.partnerId,
+      marketplacePublished: true,
     });
   }
 
@@ -1468,6 +1474,9 @@ export async function acceptDeposit(args: {
     casePublicId: updated.publicId,
     status: updated.status,
     partnerId: agent.partnerId,
+    marketplacePublished: true,
+    message:
+      "Dépôt confirmé. La fiche est publiée sur le Marketplace SafeFind (photo floutée).",
   };
 }
 
@@ -1981,10 +1990,62 @@ export async function listPartnerCustody(agentUserId: string) {
       publicId: safefindCases.publicId,
       documentType: safefindCases.documentType,
       status: safefindCases.status,
+      holderFirstName: safefindCases.holderFirstName,
+      holderLastName: safefindCases.holderLastName,
+      previewUrl: sql<string | null>`${safefindCases.meta}->>'previewUrl'`,
       createdAt: safefindCases.createdAt,
+      updatedAt: safefindCases.updatedAt,
     })
     .from(safefindCases)
-    .where(eq(safefindCases.currentPartnerId, agent.partnerId));
+    .where(
+      and(
+        eq(safefindCases.currentPartnerId, agent.partnerId),
+        inArray(safefindCases.status, [
+          "DEPOSITED_AT_PARTNER",
+          "STORED_AT_LOCATION",
+          "READY_FOR_COLLECTION",
+          "READY_FOR_PICKUP",
+          "PICKUP_RESERVED",
+        ]),
+      ),
+    )
+    .orderBy(desc(safefindCases.updatedAt));
+  return rows;
+}
+
+/** Cases awaiting physical deposit at this partner (not yet on marketplace). */
+export async function listPartnerPendingDeposits(agentUserId: string) {
+  const agent = await getPartnerAgent(agentUserId);
+  if (!agent) throw new Error("partner_forbidden");
+  const db = getDb();
+  const partnerId = agent.partnerId;
+  const rows = await db
+    .select({
+      publicId: safefindCases.publicId,
+      documentType: safefindCases.documentType,
+      status: safefindCases.status,
+      holderFirstName: safefindCases.holderFirstName,
+      holderLastName: safefindCases.holderLastName,
+      previewUrl: sql<string | null>`${safefindCases.meta}->>'previewUrl'`,
+      updatedAt: safefindCases.updatedAt,
+    })
+    .from(safefindCases)
+    .where(
+      and(
+        inArray(safefindCases.status, [
+          "DEPOSIT_PENDING",
+          "HELD_BY_FINDER",
+          "REGISTERED",
+          "FOUND",
+        ]),
+        sql`(
+          ${safefindCases.meta}->>'selectedPartnerId' = ${partnerId}
+          OR ${safefindCases.meta}->>'suggestedPartnerId' = ${partnerId}
+        )`,
+      ),
+    )
+    .orderBy(desc(safefindCases.updatedAt))
+    .limit(40);
   return rows;
 }
 

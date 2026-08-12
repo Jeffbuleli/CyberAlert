@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { SafefindDepositProcedure } from "@/components/safefind/SafefindDepositProcedure";
 import { useRouter } from "next/navigation";
 import {
   LocationPicker,
@@ -171,10 +172,17 @@ export function SafefindFoundPanel({
                 {done.depositPartner.commune}
                 {done.depositPartner.address ? ` · ${done.depositPartner.address}` : ""}
               </p>
-              <p className="mt-2 text-xs text-[var(--ca-ink-muted)]">
-                Conservez la pièce jusqu’au dépôt. Le partenaire confirmera la réception
-                au guichet — le dépôt est gratuit pour le trouveur.
-              </p>
+              <div className="mt-4 border-t border-emerald-600/20 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
+                  Étapes pour publication Marketplace
+                </p>
+                <div className="mt-3">
+                  <SafefindDepositProcedure
+                    casePublicId={done.casePublicId}
+                    partnerName={done.depositPartner.name}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <p className="mt-4 text-xs text-[var(--ca-ink-muted)]">
