@@ -6,11 +6,14 @@ export function buildContentSecurityPolicy(): string {
     "https://challenges.cloudflare.com",
   ].join(" ");
 
+  const r2Media = process.env.SAFEFIND_R2_PUBLIC_BASE_URL?.trim().replace(/\/$/, "");
+  const imgSrc = ["'self'", "data:", "blob:", ...(r2Media ? [r2Media] : [])].join(" ");
+
   return [
     "default-src 'self'",
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    `img-src ${imgSrc}`,
     "font-src 'self' data:",
     "connect-src 'self' https://challenges.cloudflare.com",
     "frame-src 'self' https://challenges.cloudflare.com",

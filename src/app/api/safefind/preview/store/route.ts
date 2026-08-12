@@ -37,11 +37,16 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { token, url } = await storeRedactedPreview(
+    const { token, url, storage } = await storeRedactedPreview(
       bytes,
       parsed.data.previewToken,
     );
-    return NextResponse.json({ ok: true, previewToken: token, previewUrl: url });
+    return NextResponse.json({
+      ok: true,
+      previewToken: token,
+      previewUrl: url,
+      storage,
+    });
   } catch (e) {
     console.error("[safefind/preview/store]", e);
     return NextResponse.json({ error: "store_failed" }, { status: 500 });

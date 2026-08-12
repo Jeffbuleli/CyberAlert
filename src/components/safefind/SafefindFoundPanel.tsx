@@ -26,6 +26,7 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
     previewUrl: string;
     previewToken: string;
   } | null>(null);
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
   const [possessionMode, setPossessionMode] = useState<"held" | "deposited">("held");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,10 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (location.partners.length > 0 && !selectedPartnerId) {
+      setError("Choisissez un Point SafeFind pour le dépôt.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -56,7 +61,7 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
           latitude: location.latitude ?? undefined,
           longitude: location.longitude ?? undefined,
           locationPrecision: location.precision || undefined,
-          partnerIdHint: location.partners[0]?.id,
+          partnerIdHint: selectedPartnerId ?? undefined,
           previewUrl: previewMeta?.previewUrl,
           previewToken: previewMeta?.previewToken,
         }),
@@ -124,7 +129,6 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
             setHolderFirstName={setHolderFirstName}
             setHolderLastName={setHolderLastName}
             setDocumentNumber={setDocumentNumber}
-            setLocation={setLocation}
             setVisualNotes={setVisualNotes}
             onPreviewCapture={setPreviewMeta}
           />
@@ -177,7 +181,12 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
 
           <LocationPicker
             value={location}
-            onChange={setLocation}
+            onChange={(loc) => {
+              setLocation(loc);
+              setSelectedPartnerId(null);
+            }}
+            selectedPartnerId={selectedPartnerId}
+            onPartnerSelect={setSelectedPartnerId}
             label="Lieu de découverte"
           />
 

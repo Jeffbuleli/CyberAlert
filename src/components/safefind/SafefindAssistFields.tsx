@@ -3,10 +3,6 @@
 import { useState } from "react";
 import type { SafefindDocOption } from "@/components/safefind/doc-types";
 import {
-  emptyPickedLocation,
-  type PickedLocation,
-} from "@/components/safefind/LocationPicker";
-import {
   IdScanCapture,
   type DocumentCaptureResult,
 } from "@/components/safefind/IdScanCapture";
@@ -18,7 +14,6 @@ type Props = {
   setHolderFirstName: (v: string) => void;
   setHolderLastName: (v: string) => void;
   setDocumentNumber: (v: string) => void;
-  setLocation: (v: PickedLocation) => void;
   setVisualNotes?: (v: string) => void;
   onPreviewCapture?: (preview: {
     previewUrl: string;
@@ -33,16 +28,11 @@ export function SafefindAssistFields({
   setHolderFirstName,
   setHolderLastName,
   setDocumentNumber,
-  setLocation,
   setVisualNotes,
   onPreviewCapture,
   scanLabel = "Photographier la pièce",
 }: Props) {
-  const [freeText, setFreeText] = useState("");
-  const [aiBusy, setAiBusy] = useState(false);
   const [aiHint, setAiHint] = useState<string | null>(null);
-  const [suggested, setSuggested] = useState(false);
-  const [reformulated, setReformulated] = useState<string | null>(null);
 
   function applyScan(fields: ParsedIdFields) {
     if (fields.documentType) setDocumentType(fields.documentType);
@@ -52,8 +42,6 @@ export function SafefindAssistFields({
     if (fields.birthDate && setVisualNotes) {
       setVisualNotes(`Année de naissance: ${fields.birthDate.slice(0, 4)}`);
     }
-    setSuggested(true);
-    setAiHint("Champs préremplis - vérifiez avant d'envoyer.");
   }
 
   function applyDocumentCapture(result: DocumentCaptureResult) {
@@ -62,100 +50,11 @@ export function SafefindAssistFields({
       previewUrl: result.previewUrl,
       previewToken: result.previewToken,
     });
-    if (result.duplicateWarning) {
-      setAiHint(result.duplicateWarning);
-    }
-  }
-
-  async function runNlParse() {
-    if (freeText.trim().length < 3) return;
-    setAiBusy(true);
-    setAiHint(null);
-    try {
-      const res = await fetch("/api/safefind/ai/parse-declaration", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: freeText.trim().replace(/\u2014/g, "-"),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setAiHint(data.error ?? "Analyse impossible");
-        return;
-      }
-      if (data.documentType) setDocumentType(data.documentType as SafefindDocOption);
-      if (data.holderFirstName) setHolderFirstName(String(data.holderFirstName));
-      if (data.holderLastName) setHolderLastName(String(data.holderLastName));
-      if (data.documentNumber) setDocumentNumber(String(data.documentNumber));
-
-      const noteParts: string[] = [];
-      if (data.reformulatedSummary) {
-        noteParts.push(String(data.reformulatedSummary).replace(/\u2014/g, "-"));
-        setReformulated(String(data.reformulatedSummary).replace(/\u2014/g, "-"));
-      }
-      if (data.birthDate) noteParts.push(`Année naissance: ${String(data.birthDate).slice(0, 4)}`);
-      if (data.visualHints && typeof data.visualHints === "object") {
-        const hints = Object.entries(data.visualHints as Record<string, string>)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join(", ");
-        if (hints) noteParts.push(hints);
-      }
-      if (setVisualNotes && noteParts.length) setVisualNotes(noteParts.join(" - "));
-
-      const locationText = String(data.locationText || freeText).trim();
-      if (locationText) {
-        const precisionMap: Record<string, string> = {
-          commune: "COMMUNE",
-          quartier: "QUARTER",
-          landmark: "LANDMARK",
-          gps: "EXACT",
-        };
-        const precision =
-          precisionMap[String(data.locationPrecision || "landmark")] || "LANDMARK";
-        const resolveRes = await fetch("/api/safefind/locations/resolve", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: "geocode",
-            address: locationText,
-            landmark: locationText,
-            precision,
-          }),
-        });
-        const loc = await resolveRes.json().catch(() => null);
-        if (resolveRes.ok && loc) {
-          setLocation({
-            locationId: loc.locationId ?? null,
-            commune: loc.commune ?? "",
-            quartier: loc.quartier ?? "",
-            landmark: loc.landmark ?? locationText,
-            latitude: loc.latitude ?? null,
-            longitude: loc.longitude ?? null,
-            precision: loc.precision ?? precision,
-            label: loc.label ?? locationText,
-            partners: loc.partners ?? [],
-          });
-        } else {
-          setLocation({
-            ...emptyPickedLocation(),
-            landmark: locationText,
-            label: locationText,
-            precision,
-          });
-        }
-      }
-
-      setSuggested(true);
-      setAiHint(
-        `Suggéré par McBuleli AI (${Math.round((data.confidence ?? 0) * 100)}%) - modifiable.`,
-      );
-    } catch {
-      setAiHint("Erreur réseau");
-    } finally {
-      setAiBusy(false);
-    }
+    const pct = Math.round((result.fields.confidence ?? 0.5) * 100);
+    setAiHint(
+      result.duplicateWarning ??
+        `McBuleli AI a rempli les champs (${pct}%) - vérifiez avant d'envoyer.`,
+    );
   }
 
   return (
@@ -166,36 +65,8 @@ export function SafefindAssistFields({
         documentTypeHint={documentType}
         label={scanLabel}
       />
-      <label className="block text-sm">
-        <span className="text-[var(--ca-ink-muted)]">Décrire librement (FR / Lingala)</span>
-        <textarea
-          className="mt-1 w-full rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)] px-3 py-2.5 text-sm"
-          rows={3}
-          value={freeText}
-          onChange={(e) => setFreeText(e.target.value.replace(/\u2014/g, "-"))}
-          placeholder="Ex. J'ai perdu le permis de Martin Specimen n° 0123456789 vers Gombe"
-        />
-      </label>
-      <button
-        type="button"
-        disabled={aiBusy || freeText.trim().length < 3}
-        onClick={() => void runNlParse()}
-        className="w-full rounded-xl border border-[var(--ca-accent)]/40 bg-[var(--ca-accent)]/10 py-2.5 text-sm font-semibold text-[var(--ca-accent)] disabled:opacity-50"
-      >
-        {aiBusy ? "McBuleli AI analyse…" : "Remplir avec McBuleli AI"}
-      </button>
-      {reformulated ? (
-        <p className="rounded-xl bg-[var(--ca-surface-2)] px-3 py-2 text-xs text-[var(--ca-ink)]">
-          <span className="font-semibold text-[var(--ca-accent)]">Reformulé: </span>
-          {reformulated}
-        </p>
-      ) : null}
       {aiHint ? (
-        <p className="text-xs text-[var(--ca-ink-muted)]">
-          {suggested ? "✦ " : ""}
-          {aiHint}
-          <span className="sr-only"> type actuel {documentType}</span>
-        </p>
+        <p className="text-xs text-[var(--ca-ink-muted)]">✦ {aiHint}</p>
       ) : null}
     </div>
   );

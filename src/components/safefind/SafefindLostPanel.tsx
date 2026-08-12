@@ -156,7 +156,6 @@ export function SafefindLostPanel({
               setHolderFirstName={setHolderFirstName}
               setHolderLastName={setHolderLastName}
               setDocumentNumber={setDocumentNumber}
-              setLocation={setLocation}
             />
             <fieldset>
               <legend className="text-sm text-[var(--ca-ink-muted)]">Type de pièce</legend>

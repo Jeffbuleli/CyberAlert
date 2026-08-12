@@ -546,6 +546,10 @@ export async function declareFound(args: {
 
   let nextStatus: SafefindCaseStatus = "REGISTERED";
   const possession = args.possessionMode ?? (args.partnerIdHint ? "deposited" : "held");
+  const baseMeta = {
+    ...(caseRow.meta ?? {}),
+    ...(args.partnerIdHint ? { selectedPartnerId: args.partnerIdHint } : {}),
+  };
   if (possession === "held") {
     nextStatus = "HELD_BY_FINDER";
     await db
@@ -554,11 +558,19 @@ export async function declareFound(args: {
         status: nextStatus,
         heldByFinder: true,
         updatedAt: new Date(),
-        meta: args.partnerIdHint
-          ? { suggestedPartnerId: args.partnerIdHint }
-          : {},
+        meta: baseMeta,
       })
       .where(eq(safefindCases.id, caseRow.id));
+    if (args.partnerIdHint) {
+      await appendCustodyEvent({
+        caseId: caseRow.id,
+        eventType: "PARTNER_SELECTED",
+        actorUserId: args.userId,
+        actorRole: "finder",
+        partnerId: args.partnerIdHint,
+        newValue: { status: nextStatus, heldByFinder: true },
+      });
+    }
     await appendCustodyEvent({
       caseId: caseRow.id,
       eventType: "HELD_BY_FINDER",
@@ -574,7 +586,7 @@ export async function declareFound(args: {
         status: nextStatus,
         heldByFinder: false,
         updatedAt: new Date(),
-        meta: { suggestedPartnerId: args.partnerIdHint },
+        meta: baseMeta,
       })
       .where(eq(safefindCases.id, caseRow.id));
     await appendCustodyEvent({

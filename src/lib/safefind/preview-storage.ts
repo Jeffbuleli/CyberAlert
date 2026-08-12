@@ -1,6 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import {
+  putSafefindPreviewToR2,
+  safefindR2Configured,
+} from "@/lib/safefind/r2-previews";
 
 const PREVIEW_DIR =
   process.env.SAFEFIND_PREVIEW_DIR?.trim() ||
@@ -19,16 +23,24 @@ export function newPreviewToken(): string {
   return randomBytes(16).toString("hex");
 }
 
-/** Store redacted JPEG; returns public API URL token path. */
+/** Store redacted JPEG on R2 (preferred) or local disk. */
 export async function storeRedactedPreview(
   jpegBytes: Buffer,
   token?: string,
-): Promise<{ token: string; url: string }> {
-  await ensurePreviewDir();
+): Promise<{ token: string; url: string; storage: "r2" | "local" }> {
   const id = token ?? newPreviewToken();
+
+  if (safefindR2Configured()) {
+    const r2Url = await putSafefindPreviewToR2({ token: id, body: jpegBytes });
+    if (r2Url) {
+      return { token: id, url: r2Url, storage: "r2" };
+    }
+  }
+
+  await ensurePreviewDir();
   const file = path.join(PREVIEW_DIR, `${id}.jpg`);
   await writeFile(file, jpegBytes);
-  return { token: id, url: previewPublicUrl(id) };
+  return { token: id, url: previewPublicUrl(id), storage: "local" };
 }
 
 export async function readPreviewFile(

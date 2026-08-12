@@ -27,6 +27,8 @@ type Props = {
   value: PickedLocation;
   onChange: (v: PickedLocation) => void;
   label?: string;
+  selectedPartnerId?: string | null;
+  onPartnerSelect?: (partnerId: string) => void;
 };
 
 type Suggestion = {
@@ -40,7 +42,13 @@ type Suggestion = {
   provider?: string;
 };
 
-export function LocationPicker({ value, onChange, label }: Props) {
+export function LocationPicker({
+  value,
+  onChange,
+  label,
+  selectedPartnerId,
+  onPartnerSelect,
+}: Props) {
   const [mode, setMode] = useState<Mode>("search");
   const [q, setQ] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -342,17 +350,52 @@ export function LocationPicker({ value, onChange, label }: Props) {
       {value.partners.length > 0 ? (
         <div className="rounded-xl border border-[var(--ca-border)]/60 p-3">
           <p className="text-xs font-medium text-[var(--ca-ink)]">
-            Points SafeFind les plus proches
+            Choisissez un Point SafeFind pour le dépôt
           </p>
-          <ul className="mt-2 space-y-1 text-xs text-[var(--ca-ink-muted)]">
-            {value.partners.slice(0, 5).map((p) => (
-              <li key={p.id}>
-                {p.name} - {p.distanceKm.toFixed(1)} km
-                {p.capacityStatus && p.capacityStatus !== "AVAILABLE"
-                  ? ` (${p.capacityStatus})`
-                  : ""}
-              </li>
-            ))}
+          <p className="mt-0.5 text-[11px] text-[var(--ca-ink-muted)]">
+            Sélectionnez un point que vous connaissez - il sera lié à votre dossier.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {value.partners.slice(0, 5).map((p) => {
+              const selected = selectedPartnerId === p.id;
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPartnerSelect?.(p.id)}
+                    className={`flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left text-xs transition ${
+                      selected
+                        ? "border-[var(--ca-accent)] bg-[var(--ca-accent)]/10"
+                        : "border-[var(--ca-border)] bg-[var(--ca-surface)] hover:border-[var(--ca-accent)]/40"
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                        selected
+                          ? "border-[var(--ca-accent)] bg-[var(--ca-accent)]"
+                          : "border-[var(--ca-border)]"
+                      }`}
+                      aria-hidden
+                    >
+                      {selected ? (
+                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-[var(--ca-ink)]">
+                        {p.name}
+                      </span>
+                      <span className="text-[var(--ca-ink-muted)]">
+                        {p.commune} · {p.distanceKm.toFixed(1)} km
+                        {p.capacityStatus && p.capacityStatus !== "AVAILABLE"
+                          ? ` · ${p.capacityStatus}`
+                          : ""}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}
