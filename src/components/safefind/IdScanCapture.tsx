@@ -24,6 +24,7 @@ import {
   DOC_CAPTURE_FRAMES,
   mergeBlurRegions,
   normalizeAiRegions,
+  sanitizeAiBlurRegions,
 } from "@/lib/safefind/id-scan/redact-regions";
 
 type BarcodeDetectorLike = {
@@ -268,9 +269,16 @@ export function IdScanCapture({
         cropped = cropCanvas(cropped, ai.cropBox);
       }
 
+      const resolvedDocType =
+        ceniFromQr
+          ? "carte_electeur"
+          : ((ai.documentType as SafefindDocOption) ?? docType ?? "carte_electeur");
       const regions = mergeBlurRegions(
-        defaultBlurRegions((ai.documentType as SafefindDocOption) ?? docType),
-        normalizeAiRegions(ai.blurRegions),
+        defaultBlurRegions(resolvedDocType),
+        sanitizeAiBlurRegions(
+          resolvedDocType,
+          normalizeAiRegions(ai.blurRegions),
+        ),
       );
       applyBlurRegions(cropped, regions, 16);
       const redactedDataUrl = canvasToJpegDataUrl(cropped, 0.88);
@@ -286,8 +294,6 @@ export function IdScanCapture({
         return;
       }
 
-      const resolvedDocType =
-        (ai.documentType as SafefindDocOption) ?? docType ?? "carte_electeur";
       const fields: ParsedIdFields = {
         documentType: ceniFromQr ? "carte_electeur" : resolvedDocType,
         holderFirstName: ai.holderFirstName ?? null,

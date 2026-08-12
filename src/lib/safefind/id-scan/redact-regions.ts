@@ -107,3 +107,23 @@ export function normalizeAiRegions(raw: unknown): BlurRegion[] {
   }
   return out;
 }
+
+/**
+ * Drop unsafe AI blur regions that would hide the whole document or the portrait.
+ * SafeFind keeps the document photo visible for recognition/KYC.
+ */
+export function sanitizeAiBlurRegions(
+  documentType: "carte_electeur" | "passeport" | "permis_conduire",
+  regions: BlurRegion[],
+): BlurRegion[] {
+  const blockedFields = new Set(["photo", "portrait", "face", "selfie"]);
+  const maxArea = documentType === "carte_electeur" ? 0.22 : 0.3;
+
+  return regions.filter((r) => {
+    const field = String(r.field ?? "").toLowerCase();
+    if (blockedFields.has(field)) return false;
+    if (r.w * r.h > maxArea) return false;
+    if (r.w > 0.92 || r.h > 0.92) return false;
+    return true;
+  });
+}

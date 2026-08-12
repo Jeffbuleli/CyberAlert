@@ -34,7 +34,7 @@ export function resolveCarteElecteurDocumentNumber(
   qr: CeniElecteurQrFields | null,
 ): string | null {
   if (qr?.nationalNumber) return qr.nationalNumber;
-  const n = (ocrOrAiNumber ?? "").replace(/\s+/g, "");
+  const n = (ocrOrAiNumber ?? "").replace(/\D/g, "");
   if (/^\d{11}$/.test(n)) return n;
-  return ocrOrAiNumber?.trim() || null;
+  return null;
 }

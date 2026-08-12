@@ -73,6 +73,11 @@ describe("SafeFind ID scan parse", () => {
       "12345678901",
     );
   });
+
+  it("rejects 14-char photo number as carte électeur documentNumber", () => {
+    assert.equal(resolveCarteElecteurDocumentNumber("ABCD1234EFGH56", null), null);
+    assert.equal(resolveCarteElecteurDocumentNumber("1234 5678 901", null), "12345678901");
+  });
 });
 
 describe("SafeFind AI assist authority bounds", () => {
