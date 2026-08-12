@@ -1,8 +1,6 @@
 -- Update SafeFind standard reward amounts (CDF).
 UPDATE safefind_reward_policies
-SET
-  base_reward = v.base_reward,
-  updated_at = NOW()
+SET base_reward = v.base_reward
 FROM (VALUES
   ('carte_electeur', 10000::numeric),
   ('permis_conduire', 20000::numeric),
