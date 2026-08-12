@@ -87,6 +87,15 @@ export function IdScanCapture({
     setCamErr(null);
     setBusy(true);
     try {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.getUserMedia
+      ) {
+        setCamErr(
+          "Caméra non supportée ici - ouvrez dans Chrome/Safari ou collez le code.",
+        );
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
         audio: false,
@@ -94,15 +103,16 @@ export function IdScanCapture({
       streamRef.current = stream;
       const video = videoRef.current;
       if (!video) throw new Error("no_video");
+      video.setAttribute("playsinline", "true");
+      video.muted = true;
       video.srcObject = stream;
       await video.play();
 
       const detector = getBarcodeDetector();
       if (!detector) {
         setCamErr(
-          "Scan caméra limité sur ce navigateur - collez le contenu QR/MRZ ci-dessous.",
+          "Caméra OK - scan auto limité sur ce navigateur. Cadrez le QR puis collez le texte ci-dessous si besoin.",
         );
-        setBusy(false);
         return;
       }
 
@@ -124,8 +134,23 @@ export function IdScanCapture({
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
-    } catch {
-      setCamErr("Caméra indisponible - autorisez l’accès ou collez le code.");
+    } catch (e) {
+      const name = e instanceof DOMException ? e.name : "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        setCamErr(
+          "Accès caméra bloqué par le navigateur. Appuyez sur l’icône cadenas dans la barre d’adresse et autorisez la caméra pour ce site.",
+        );
+      } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        setCamErr("Aucune caméra détectée sur cet appareil.");
+      } else if (name === "NotReadableError") {
+        setCamErr(
+          "Caméra occupée par une autre application. Fermez l’autre app puis réessayez.",
+        );
+      } else {
+        setCamErr(
+          "Impossible d’ouvrir la caméra. Rechargez la page ou collez le code manuellement.",
+        );
+      }
     } finally {
       setBusy(false);
     }

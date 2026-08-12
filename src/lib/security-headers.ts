@@ -29,7 +29,9 @@ export function applySecurityHeaders(headers: Headers, pathname?: string) {
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   const allowCamera =
     typeof pathname === "string" &&
-    (pathname === "/safefind" || pathname.startsWith("/safefind/"));
+    (pathname === "/" ||
+      pathname === "/safefind" ||
+      pathname.startsWith("/safefind/"));
   headers.set(
     "Permissions-Policy",
     allowCamera
