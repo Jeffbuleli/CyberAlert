@@ -11,6 +11,10 @@ import {
   resolveCarteElecteurDocumentNumber,
 } from "@/lib/safefind/id-scan/ceni-qr";
 import {
+  detectQrFromCanvas,
+  detectQrFromVideo,
+} from "@/lib/safefind/id-scan/qr-detect-client";
+import {
   applyBlurRegions,
   canvasToJpegDataUrl,
   captureVideoFrame,
@@ -49,19 +53,6 @@ function getBarcodeDetector(): BarcodeDetectorLike | null {
   }
 }
 
-async function detectQrFromCanvas(
-  canvas: HTMLCanvasElement,
-): Promise<string | null> {
-  const detector = getBarcodeDetector();
-  if (!detector) return null;
-  try {
-    const codes = await detector.detect(canvas);
-    return codes.find((c) => c.rawValue)?.rawValue ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export type DocumentCaptureResult = {
   fields: ParsedIdFields;
   previewUrl: string;
@@ -91,6 +82,9 @@ export function IdScanCapture({
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const cropRef = useRef({ x: 0.04, y: 0.06, w: 0.92, h: 0.88 });
+  const qrPayloadRef = useRef<string | null>(null);
+  const qrScanBusyRef = useRef(false);
+  const qrScanTickRef = useRef(0);
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [camErr, setCamErr] = useState<string | null>(null);
@@ -152,8 +146,30 @@ export function IdScanCapture({
     }
     cropRef.current = guideCropRect(vw, vh, frame.aspect);
     drawLiveBlurOverlay(overlay, video, blurRegions, cropRef.current);
+
+    qrScanTickRef.current += 1;
+    if (
+      !sleeveMode &&
+      docType === "carte_electeur" &&
+      !qrPayloadRef.current &&
+      !qrScanBusyRef.current &&
+      qrScanTickRef.current % 18 === 0
+    ) {
+      qrScanBusyRef.current = true;
+      void detectQrFromVideo(video)
+        .then((raw) => {
+          if (raw && parseCeniElecteurQr(raw)) {
+            qrPayloadRef.current = raw;
+            setAiHint("QR CENI détecté — prenez la photo.");
+          }
+        })
+        .finally(() => {
+          qrScanBusyRef.current = false;
+        });
+    }
+
     rafRef.current = requestAnimationFrame(liveLoop);
-  }, [blurRegions, frame.aspect]);
+  }, [blurRegions, docType, frame.aspect, sleeveMode]);
 
   async function startCam() {
     setCamErr(null);
@@ -227,11 +243,13 @@ export function IdScanCapture({
 
   function openCamera() {
     setPreview(null);
+    qrPayloadRef.current = null;
     setCameraOpen(true);
   }
 
   function retake() {
     setPreview(null);
+    qrPayloadRef.current = null;
     setAiHint(null);
     setCamErr(null);
     setCameraOpen(true);
@@ -247,7 +265,11 @@ export function IdScanCapture({
       const full = captureVideoFrame(video, 1920);
       let cropped = cropCanvas(full, cropRef.current);
 
-      const qrPayload = await detectQrFromCanvas(cropped);
+      const qrPayload =
+        qrPayloadRef.current ??
+        (await detectQrFromVideo(video)) ??
+        (await detectQrFromCanvas(full)) ??
+        (await detectQrFromCanvas(cropped));
       const ceniFromQr = qrPayload ? parseCeniElecteurQr(qrPayload) : null;
 
       const aiRes = await fetch("/api/safefind/ai/parse-document", {

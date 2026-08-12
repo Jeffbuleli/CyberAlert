@@ -23,7 +23,7 @@ export const DOC_CAPTURE_FRAMES: Record<
   DocFrame
 > = {
   carte_electeur: { aspect: 1.58, label: "Cadrez la carte d'électeur" },
-  passeport: { aspect: 0.72, label: "Cadrez la page données du passeport" },
+  passeport: { aspect: 1.45, label: "Cadrez la page données du passeport" },
   permis_conduire: { aspect: 1.45, label: "Cadrez le permis de conduire" },
 };
 
