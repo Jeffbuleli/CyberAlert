@@ -539,7 +539,7 @@ export function SafefindHome() {
                 </li>
                 <li>
                   <span className="font-semibold text-[var(--ca-accent)]">3.</span>{" "}
-                  Vérification, puis retrait au Point — jamais de rencontre trouveur /
+                  Vérification, puis retrait au Point - jamais de rencontre trouveur /
                   propriétaire.
                 </li>
                 <li>

@@ -46,6 +46,14 @@ describe("SafeFind ID scan parse", () => {
     assert.ok(parsed);
     assert.equal(parsed!.rawKind, "sleeve");
   });
+
+  it("parses DRC permis strip", () => {
+    const parsed = parseIdScanPayload("D1COD012345678<850725<260929<6");
+    assert.ok(parsed);
+    assert.equal(parsed!.documentType, "permis_conduire");
+    assert.equal(parsed!.documentNumber, "012345678");
+    assert.equal(parsed!.birthDate, "1985-07-25");
+  });
 });
 
 describe("SafeFind AI assist authority bounds", () => {
@@ -73,15 +81,13 @@ describe("SafeFind AI assist authority bounds", () => {
     assert.equal(mid.aiBoosted, true);
   });
 
-  it("template NL parse never invents document numbers", async () => {
+  it("template NL fills type and reformulates without emdash", async () => {
     const r = await safefindParseDeclaration(
-      "J'ai perdu ma carte vers chez Maman Olive près arrêt Pascal vendredi après-midi",
+      "J'ai perdu le permis au nom de Martin Specimen n° 0123456789 vers Gombe",
     );
-    assert.ok(r.locationText);
-    assert.equal(
-      (r as { documentNumber?: string }).documentNumber,
-      undefined,
-    );
+    assert.equal(r.documentType, "permis_conduire");
+    assert.ok(r.reformulatedSummary);
+    assert.ok(!r.reformulatedSummary!.includes("\u2014"));
   });
 
   it("high AI confidence still cannot authorize reward alone", () => {

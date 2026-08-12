@@ -34,14 +34,18 @@ export function SafefindAssistFields({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiHint, setAiHint] = useState<string | null>(null);
   const [suggested, setSuggested] = useState(false);
+  const [reformulated, setReformulated] = useState<string | null>(null);
 
   function applyScan(fields: ParsedIdFields) {
     if (fields.documentType) setDocumentType(fields.documentType);
     if (fields.holderFirstName) setHolderFirstName(fields.holderFirstName);
     if (fields.holderLastName) setHolderLastName(fields.holderLastName);
     if (fields.documentNumber) setDocumentNumber(fields.documentNumber);
+    if (fields.birthDate && setVisualNotes) {
+      setVisualNotes(`Année de naissance: ${fields.birthDate.slice(0, 4)}`);
+    }
     setSuggested(true);
-    setAiHint("Champs préremplis depuis le scan — vérifiez avant d’envoyer.");
+    setAiHint("Champs préremplis depuis le scan - vérifiez avant d'envoyer.");
   }
 
   async function runNlParse() {
@@ -52,7 +56,9 @@ export function SafefindAssistFields({
       const res = await fetch("/api/safefind/ai/parse-declaration", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: freeText.trim() }),
+        body: JSON.stringify({
+          text: freeText.trim().replace(/\u2014/g, "-"),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -60,12 +66,23 @@ export function SafefindAssistFields({
         return;
       }
       if (data.documentType) setDocumentType(data.documentType as SafefindDocOption);
-      if (data.visualHints && setVisualNotes) {
+      if (data.holderFirstName) setHolderFirstName(String(data.holderFirstName));
+      if (data.holderLastName) setHolderLastName(String(data.holderLastName));
+      if (data.documentNumber) setDocumentNumber(String(data.documentNumber));
+
+      const noteParts: string[] = [];
+      if (data.reformulatedSummary) {
+        noteParts.push(String(data.reformulatedSummary).replace(/\u2014/g, "-"));
+        setReformulated(String(data.reformulatedSummary).replace(/\u2014/g, "-"));
+      }
+      if (data.birthDate) noteParts.push(`Année naissance: ${String(data.birthDate).slice(0, 4)}`);
+      if (data.visualHints && typeof data.visualHints === "object") {
         const hints = Object.entries(data.visualHints as Record<string, string>)
           .map(([k, v]) => `${k}: ${v}`)
           .join(", ");
-        if (hints) setVisualNotes(hints);
+        if (hints) noteParts.push(hints);
       }
+      if (setVisualNotes && noteParts.length) setVisualNotes(noteParts.join(" - "));
 
       const locationText = String(data.locationText || freeText).trim();
       if (locationText) {
@@ -113,7 +130,7 @@ export function SafefindAssistFields({
 
       setSuggested(true);
       setAiHint(
-        `Suggéré par McBuleli AI (${Math.round((data.confidence ?? 0) * 100)}%) — modifiable.`,
+        `Suggéré par McBuleli AI (${Math.round((data.confidence ?? 0) * 100)}%) - modifiable.`,
       );
     } catch {
       setAiHint("Erreur réseau");
@@ -131,8 +148,8 @@ export function SafefindAssistFields({
           className="mt-1 w-full rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)] px-3 py-2.5 text-sm"
           rows={3}
           value={freeText}
-          onChange={(e) => setFreeText(e.target.value)}
-          placeholder="Ex. J’ai perdu mon permis près de l’UPN samedi vers 18h"
+          onChange={(e) => setFreeText(e.target.value.replace(/\u2014/g, "-"))}
+          placeholder="Ex. J'ai perdu le permis de Martin Specimen n° 0123456789 vers Gombe"
         />
       </label>
       <button
@@ -143,6 +160,12 @@ export function SafefindAssistFields({
       >
         {aiBusy ? "McBuleli AI analyse…" : "Remplir avec McBuleli AI"}
       </button>
+      {reformulated ? (
+        <p className="rounded-xl bg-[var(--ca-surface-2)] px-3 py-2 text-xs text-[var(--ca-ink)]">
+          <span className="font-semibold text-[var(--ca-accent)]">Reformulé: </span>
+          {reformulated}
+        </p>
+      ) : null}
       {aiHint ? (
         <p className="text-xs text-[var(--ca-ink-muted)]">
           {suggested ? "✦ " : ""}

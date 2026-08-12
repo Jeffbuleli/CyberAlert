@@ -1,6 +1,6 @@
 /**
  * Local ID payload parsing for SafeFind autofill.
- * Never sends raw scans to the network — caller confirms fields before submit.
+ * Never sends raw scans to the network - caller confirms fields before submit.
  */
 
 export type ParsedIdFields = {
@@ -8,6 +8,7 @@ export type ParsedIdFields = {
   holderFirstName: string | null;
   holderLastName: string | null;
   documentNumber: string | null;
+  birthDate: string | null;
   source: "mrz" | "qr" | "barcode" | "manual";
   confidence: number;
   rawKind: string;
@@ -21,7 +22,7 @@ function cleanName(s: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** ICAO TD3 passport MRZ (2×44). */
+/** ICAO TD3 passport MRZ (2x44). */
 export function parseMrzTd3(text: string): ParsedIdFields | null {
   const lines = text
     .toUpperCase()
@@ -53,23 +54,52 @@ export function parseMrzTd3(text: string): ParsedIdFields | null {
   const last = cleanName(names[0] ?? "");
   const first = cleanName((names[1] ?? "").split("<")[0] ?? "");
   const docNum = l2.slice(0, 9).replace(/</g, "").trim();
+  const dobRaw = l2.slice(13, 19);
+  let birthDate: string | null = null;
+  if (/^\d{6}$/.test(dobRaw)) {
+    const yy = Number(dobRaw.slice(0, 2));
+    const year = yy > 50 ? 1900 + yy : 2000 + yy;
+    birthDate = `${year}-${dobRaw.slice(2, 4)}-${dobRaw.slice(4, 6)}`;
+  }
 
   return {
     documentType: "passeport",
     holderFirstName: first || null,
     holderLastName: last || null,
     documentNumber: docNum || null,
+    birthDate,
     source: "mrz",
     confidence: 0.9,
     rawKind: "td3",
   };
 }
 
+/** DRC driving licence strip e.g. D1COD012345678<850725<260929<6 */
+export function parseDrcPermisMrz(text: string): ParsedIdFields | null {
+  const compact = text.toUpperCase().replace(/\s+/g, "");
+  const m = compact.match(/D1COD([A-Z0-9]+)<(\d{6})<(\d{6})</);
+  if (!m) return null;
+  const docNum = m[1];
+  const dobRaw = m[2];
+  const yy = Number(dobRaw.slice(0, 2));
+  const year = yy > 50 ? 1900 + yy : 2000 + yy;
+  return {
+    documentType: "permis_conduire",
+    holderFirstName: null,
+    holderLastName: null,
+    documentNumber: docNum,
+    birthDate: `${year}-${dobRaw.slice(2, 4)}-${dobRaw.slice(4, 6)}`,
+    source: "mrz",
+    confidence: 0.85,
+    rawKind: "drc_permis",
+  };
+}
+
 function inferDocType(raw: string): ParsedIdFields["documentType"] {
   const t = raw.toLowerCase();
   if (/passport|passeport|td3|\bp</i.test(t)) return "passeport";
-  if (/permis|driving|license|licence/i.test(t)) return "permis_conduire";
-  if (/electeur|voter|carte.?id|national.?id/i.test(t)) return "carte_electeur";
+  if (/permis|driving|license|licence|d1cod/i.test(t)) return "permis_conduire";
+  if (/electeur|voter|carte.?id|national.?id|ceni/i.test(t)) return "carte_electeur";
   return null;
 }
 
@@ -78,13 +108,14 @@ export function parseQrOrBarcodePayload(raw: string): ParsedIdFields | null {
   const text = raw.trim();
   if (!text) return null;
 
-  // Sleeve token for partners — not an identity doc
+  // Sleeve token for partners - not an identity doc
   if (/^SF-(SLV|SLEEVE)-/i.test(text) || /^SLEEVE[_-]/i.test(text)) {
     return {
       documentType: null,
       holderFirstName: null,
       holderLastName: null,
       documentNumber: text,
+      birthDate: null,
       source: "qr",
       confidence: 0.95,
       rawKind: "sleeve",
@@ -100,12 +131,15 @@ export function parseQrOrBarcodePayload(raw: string): ParsedIdFields | null {
     const last = String(j.lastName ?? j.nom ?? j.surname ?? "").trim() || null;
     const num =
       String(j.documentNumber ?? j.number ?? j.doc_number ?? j.id ?? "").trim() || null;
+    const birth =
+      String(j.birthDate ?? j.dateNaissance ?? j.dob ?? "").trim() || null;
     if (first || last || num) {
       return {
         documentType: docType,
         holderFirstName: first,
         holderLastName: last,
         documentNumber: num,
+        birthDate: birth,
         source: "qr",
         confidence: 0.85,
         rawKind: "json",
@@ -126,13 +160,14 @@ export function parseQrOrBarcodePayload(raw: string): ParsedIdFields | null {
       holderFirstName: kv.firstname ?? kv.prenom ?? null,
       holderLastName: kv.lastname ?? kv.nom ?? null,
       documentNumber: kv.number ?? kv.documentnumber ?? kv.id ?? null,
+      birthDate: kv.birthdate ?? kv.dob ?? kv.naissance ?? null,
       source: "qr",
       confidence: 0.75,
       rawKind: "kv",
     };
   }
 
-  const mrz = parseMrzTd3(text);
+  const mrz = parseMrzTd3(text) ?? parseDrcPermisMrz(text);
   if (mrz) return mrz;
 
   // Plain alphanumeric document id
@@ -142,6 +177,7 @@ export function parseQrOrBarcodePayload(raw: string): ParsedIdFields | null {
       holderFirstName: null,
       holderLastName: null,
       documentNumber: text.toUpperCase(),
+      birthDate: null,
       source: "barcode",
       confidence: 0.55,
       rawKind: "plain",
@@ -152,7 +188,7 @@ export function parseQrOrBarcodePayload(raw: string): ParsedIdFields | null {
 }
 
 export function parseIdScanPayload(raw: string): ParsedIdFields | null {
-  return parseMrzTd3(raw) ?? parseQrOrBarcodePayload(raw);
+  return parseMrzTd3(raw) ?? parseDrcPermisMrz(raw) ?? parseQrOrBarcodePayload(raw);
 }
 
 /** Strip fields that must never leave the device toward an LLM. */
@@ -168,6 +204,7 @@ export function redactParsedForAi(p: ParsedIdFields): Record<string, unknown> {
     documentNumberLast4: p.documentNumber
       ? p.documentNumber.replace(/\s+/g, "").slice(-4)
       : null,
+    birthYear: p.birthDate ? p.birthDate.slice(0, 4) : null,
     source: p.source,
     confidence: p.confidence,
   };

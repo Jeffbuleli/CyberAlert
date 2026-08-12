@@ -39,8 +39,26 @@ export function toPublicCaseView(row: {
   mediaRefs?: Array<{ kind: string; key: string; redacted: boolean }> | null;
   rewardAmount?: string | null;
   rewardCurrency?: string | null;
+  meta?: Record<string, unknown> | null;
   createdAt: Date;
 }) {
+  const meta = (row.meta ?? {}) as Record<string, unknown>;
+  const appearance = sanitizeAppearance(row.appearanceMeta ?? {});
+  const birthYear =
+    typeof appearance.birthYear === "string" || typeof appearance.birthYear === "number"
+      ? String(appearance.birthYear).slice(0, 4)
+      : typeof meta.birthYear === "string" || typeof meta.birthYear === "number"
+        ? String(meta.birthYear).slice(0, 4)
+        : null;
+  const previewFromMedia = (row.mediaRefs ?? []).find((m) => m.redacted)?.key;
+  const previewUrl =
+    (typeof meta.previewUrl === "string" ? meta.previewUrl : null) ??
+    (typeof previewFromMedia === "string" ? previewFromMedia : null);
+  const listingSummary =
+    typeof meta.listingSummary === "string"
+      ? truncatePublic(String(meta.listingSummary).replace(/\u2014/g, "-"), 180)
+      : truncatePublic(row.visualNotes?.replace(/\u2014/g, "-"), 160);
+
   return {
     publicId: row.publicId,
     documentType: row.documentType,
@@ -54,8 +72,12 @@ export function toPublicCaseView(row: {
     foundApproxDate: row.foundApproxDate
       ? approximateDate(row.foundApproxDate)
       : null,
-    appearance: sanitizeAppearance(row.appearanceMeta ?? {}),
-    visualNotes: truncatePublic(row.visualNotes, 160),
+    birthYearMasked: birthYear,
+    appearance,
+    visualNotes: truncatePublic(row.visualNotes?.replace(/\u2014/g, "-"), 160),
+    listingSummary,
+    previewUrl,
+    isSpecimen: Boolean(meta.specimen),
     previewMedia: (row.mediaRefs ?? []).filter((m) => m.redacted),
     rewardHint:
       row.rewardAmount && row.rewardCurrency
@@ -103,7 +125,17 @@ function approximateDate(d: Date): string {
 }
 
 function sanitizeAppearance(meta: Record<string, unknown>) {
-  const allowed = ["color", "condition", "cover", "language", "wear"];
+  const allowed = [
+    "color",
+    "condition",
+    "cover",
+    "language",
+    "wear",
+    "birthYear",
+    "categories",
+    "authority",
+    "placeOfBirth",
+  ];
   const out: Record<string, unknown> = {};
   for (const k of allowed) {
     if (meta[k] != null) out[k] = meta[k];

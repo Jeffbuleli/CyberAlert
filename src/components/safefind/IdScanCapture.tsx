@@ -67,7 +67,7 @@ export function IdScanCapture({
     (raw: string) => {
       const parsed = parseIdScanPayload(raw);
       if (!parsed) {
-        setCamErr("Code non reconnu — collez le texte ou saisissez manuellement.");
+        setCamErr("Code non reconnu - collez le texte ou saisissez manuellement.");
         return;
       }
       if (!sleeveMode && parsed.rawKind === "sleeve") {
@@ -100,7 +100,7 @@ export function IdScanCapture({
       const detector = getBarcodeDetector();
       if (!detector) {
         setCamErr(
-          "Scan caméra limité sur ce navigateur — collez le contenu QR/MRZ ci-dessous.",
+          "Scan caméra limité sur ce navigateur - collez le contenu QR/MRZ ci-dessous.",
         );
         setBusy(false);
         return;
@@ -125,7 +125,7 @@ export function IdScanCapture({
       };
       rafRef.current = requestAnimationFrame(tick);
     } catch {
-      setCamErr("Caméra indisponible — autorisez l’accès ou collez le code.");
+      setCamErr("Caméra indisponible - autorisez l’accès ou collez le code.");
     } finally {
       setBusy(false);
     }

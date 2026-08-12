@@ -399,12 +399,13 @@ async def report(body: Dict[str, Any], _: None = Depends(require_auth)) -> Dict[
 # --- SafeFind assist (signals only; rules engine decides) ---
 
 SAFEFIND_PARSE_SYSTEM = (
-    "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Extrais des champs structurés "
-    "depuis une déclaration FR/Lingala. JSON strict: documentType "
-    "(carte_electeur|passeport|permis_conduire|null), locationText, locationPrecision "
-    "(commune|quartier|landmark|gps|null), dateEstimate (YYYY-MM-DD|null), "
-    "timePeriod (morning|afternoon|evening|night|null), visualHints (object), confidence (0-1). "
-    "Ne invente pas de numéro de pièce. Ne décide pas des coordonnées GPS."
+    "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Reformule et extrais des champs "
+    "depuis une déclaration FR/Lingala (carte_electeur, passeport, permis_conduire). "
+    "JSON strict: documentType, holderFirstName, holderLastName, documentNumber, "
+    "birthDate (YYYY-MM-DD|null), locationText, locationPrecision "
+    "(commune|quartier|landmark|gps|null), dateEstimate, timePeriod, visualHints, "
+    "reformulatedSummary (1 phrase FR), intention (lost|found|null), confidence (0-1). "
+    "Si nom/numéro/date cités, remplis-les. Pas de GPS inventé. Remplace — par -."
 )
 
 SAFEFIND_MATCH_SYSTEM = (
@@ -449,28 +450,46 @@ async def openai_json(system: str, user: Dict[str, Any]) -> Optional[Dict[str, A
 
 
 def template_safefind_parse(text: str) -> Dict[str, Any]:
-    t = (text or "").lower()
+    raw = (text or "").replace("\u2014", "-").strip()
+    t = raw.lower()
     doc = None
     if "passeport" in t or "passport" in t:
         doc = "passeport"
     elif "permis" in t:
         doc = "permis_conduire"
-    elif "carte" in t or "electeur" in t or "électeur" in t:
+    elif "carte" in t or "electeur" in t or "électeur" in t or "ceni" in t:
         doc = "carte_electeur"
     precision = None
-    if any(x in t for x in ("près", "pembeni", "chez", "arrêt", "marché")):
+    if any(x in t for x in ("près", "pembeni", "chez", "arrêt", "marché", "upn")):
         precision = "landmark"
     elif "quartier" in t:
         precision = "quartier"
-    elif any(x in t for x in ("gombe", "ngaliema", "limete", "kinshasa")):
+    elif any(x in t for x in ("gombe", "ngaliema", "limete", "kinshasa", "selembao")):
         precision = "commune"
+    intention = None
+    if any(x in t for x in ("trouv", "retrouv", "ramass", "na moni")):
+        intention = "found"
+    elif any(x in t for x in ("perdu", "nabungi", "lost")):
+        intention = "lost"
+    label = {
+        "passeport": "passeport",
+        "permis_conduire": "permis de conduire",
+        "carte_electeur": "carte d'électeur",
+    }.get(doc or "", "pièce d'identité")
+    summary = f"{'Pièce retrouvée' if intention == 'found' else 'Pièce déclarée perdue'} - {label}"
     return {
         "documentType": doc,
-        "locationText": (text or "")[:200],
+        "holderFirstName": None,
+        "holderLastName": None,
+        "documentNumber": None,
+        "birthDate": None,
+        "locationText": raw[:200],
         "locationPrecision": precision,
         "dateEstimate": None,
         "timePeriod": None,
         "visualHints": {},
+        "reformulatedSummary": summary[:180],
+        "intention": intention,
         "confidence": 0.4 if doc else 0.2,
     }
 

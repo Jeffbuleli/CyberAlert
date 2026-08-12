@@ -98,7 +98,7 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
               <li className="font-medium text-[var(--ca-ink)]">Déposez au point le plus proche</li>
               {done.nearbyPartners.slice(0, 5).map((p) => (
                 <li key={p.id}>
-                  {p.name} — {Number(p.distanceKm).toFixed(1)} km
+                  {p.name} - {Number(p.distanceKm).toFixed(1)} km
                 </li>
               ))}
             </ul>

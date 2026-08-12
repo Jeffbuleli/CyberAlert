@@ -4,7 +4,7 @@ import { SafefindHome } from "@/components/safefind/SafefindHome";
 export const metadata = {
   title: "SafeFind - Cyber Alert RDC",
   description:
-    "Carte d'électeur, passeport ou permis — retrouver et restituer via un Point SafeFind.",
+    "Carte d'électeur, passeport ou permis - retrouver et restituer via un Point SafeFind.",
 };
 
 export default function SafefindPage() {

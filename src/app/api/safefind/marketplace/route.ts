@@ -32,7 +32,6 @@ export async function GET(req: Request) {
         nearLng != null && Number.isFinite(nearLng) ? nearLng : undefined,
     });
 
-    // Strip any accidental sensitive keys — public contract only.
     const publicListings = listings.map((l) => ({
       publicId: l.publicId,
       documentType: l.documentType,
@@ -40,9 +39,13 @@ export async function GET(req: Request) {
       holderFirstNameMasked: l.holderFirstNameMasked,
       holderLastNameMasked: l.holderLastNameMasked,
       documentNumberLast4: l.documentNumberLast4,
+      birthYearMasked: l.birthYearMasked ?? null,
       foundZone: l.foundZone,
       foundApproxDate: l.foundApproxDate,
       visualNotes: l.visualNotes,
+      listingSummary: l.listingSummary ?? null,
+      previewUrl: l.previewUrl ?? null,
+      isSpecimen: Boolean(l.isSpecimen),
       rewardHint: l.rewardHint,
       createdAt: l.createdAt,
       partner: l.partner,
