@@ -15,10 +15,11 @@ PASSEPORT biométrique RDC (DERMALOG):
 - Numéro passeport unique, MRZ 2 lignes en bas, puce RFID invisible.
 - Brouiller: n° passeport, noms, dates, MRZ, signature — garder photo visible.
 
-PERMIS DE CONDUIRE biométrique RDC:
-- Format carte rigide: recto = identité + n° permis; verso = catégories A-E.
-- Cadrez le recto pour scan; n° permis unique = documentNumber.
-- Brouiller n° permis, identité, dates, code-barres/QR — photo visible.
+PERMIS DE CONDUIRE RDC (plusieurs modèles):
+- Modèle biométrique récent: carte rigide format CB, recto identité + n° permis, verso catégories A-E, MRZ 3 lignes.
+- Modèle classique ZRE/échantillon: format carte paysage, photo à gauche, champs numérotés 1-12, MRZ 1 ligne en bas (D1COD...).
+- documentNumber = n° permis (champ 5 ou N° Permis), pas l'ID Nationale/NUI si distinct.
+- Cadrez le recto; brouiller n° permis, identité, dates, MRZ/code-barres — photo visible.
 
 JSON strict: documentType, holderFirstName, holderLastName, holderPostName, documentNumber,
 photoCardNumber (carte_electeur 14 car. si visible), enrollmentBureauCode (11 car. bureau si QR),

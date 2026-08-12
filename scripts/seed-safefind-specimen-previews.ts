@@ -31,6 +31,11 @@ const SPECIMENS: Specimen[] = [
     documentType: "permis_conduire",
     sourceFile: "permis-conduire-source.png",
   },
+  {
+    slug: "permis-conduire-zre",
+    documentType: "permis_conduire",
+    sourceFile: "permis-conduire-zre-source.png",
+  },
 ];
 
 const SOURCE_DIR = join(process.cwd(), "content", "safefind-specimens");
