@@ -26,6 +26,7 @@ export function classifyFoundDeclarationCollision(args: {
     initialFinderUserId: string | null;
     status: string;
     currentPartnerId: string | null;
+    recoveryFinderUserId?: string | null;
   };
 }): FoundDeclarationCollision {
   const isOwn =
@@ -33,9 +34,18 @@ export function classifyFoundDeclarationCollision(args: {
     args.existing.initialFinderUserId === args.declarantUserId;
 
   if (isOwn) {
-    return isFinderEditableStatus(args.existing.status)
-      ? "same_finder_resume"
-      : "same_finder_readonly";
+    if (isFinderEditableStatus(args.existing.status)) {
+      return "same_finder_resume";
+    }
+    // False incident: same user re-declared before fix — never had partner custody.
+    if (
+      args.existing.status === "PARTNER_INCIDENT" &&
+      !args.existing.currentPartnerId &&
+      args.existing.recoveryFinderUserId === args.declarantUserId
+    ) {
+      return "same_finder_resume";
+    }
+    return "same_finder_readonly";
   }
 
   const hadCustody =

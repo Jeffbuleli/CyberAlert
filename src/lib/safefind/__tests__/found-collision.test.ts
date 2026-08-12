@@ -45,6 +45,21 @@ describe("SafeFind found declaration collision", () => {
     );
   });
 
+  it("same finder + false self-incident resumes dossier", () => {
+    assert.equal(
+      classifyFoundDeclarationCollision({
+        declarantUserId: "user-a",
+        existing: {
+          initialFinderUserId: "user-a",
+          status: "PARTNER_INCIDENT",
+          currentPartnerId: null,
+          recoveryFinderUserId: "user-a",
+        },
+      }),
+      "same_finder_resume",
+    );
+  });
+
   it("different finder + partner custody is refound", () => {
     assert.equal(
       classifyFoundDeclarationCollision({

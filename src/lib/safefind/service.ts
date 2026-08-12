@@ -271,9 +271,10 @@ type DeclareFoundInput = {
 async function findActiveCaseByDocumentHash(args: {
   docHash: string;
   documentType: SafefindDocType;
+  declarantUserId?: string;
 }) {
   const db = getDb();
-  const [hit] = await db
+  const hits = await db
     .select()
     .from(safefindCases)
     .where(
@@ -283,8 +284,28 @@ async function findActiveCaseByDocumentHash(args: {
         sql`${safefindCases.status} not in ('CANCELLED','EXPIRED','REWARD_RELEASED')`,
       ),
     )
-    .limit(1);
-  return hit ?? null;
+    .orderBy(desc(safefindCases.updatedAt))
+    .limit(5);
+
+  if (!hits.length) return null;
+
+  if (args.declarantUserId) {
+    const ownEditable = hits.find(
+      (h) =>
+        h.initialFinderUserId === args.declarantUserId &&
+        (isFinderEditableStatus(h.status) ||
+          (h.status === "PARTNER_INCIDENT" &&
+            !h.currentPartnerId &&
+            (h.meta as Record<string, unknown>)?.recoveryFinderUserId ===
+              args.declarantUserId)),
+    );
+    if (ownEditable) return ownEditable;
+
+    const ownAny = hits.find((h) => h.initialFinderUserId === args.declarantUserId);
+    if (ownAny) return ownAny;
+  }
+
+  return hits[0] ?? null;
 }
 
 async function resumeExistingFinderCase(args: {
@@ -336,6 +357,11 @@ async function resumeExistingFinderCase(args: {
     heldByFinder = true;
   }
 
+  const repairingSelfIncident =
+    caseRow.status === "PARTNER_INCIDENT" &&
+    !caseRow.currentPartnerId &&
+    prevMeta.recoveryFinderUserId === args.userId;
+
   await db
     .update(safefindCases)
     .set({
@@ -355,8 +381,18 @@ async function resumeExistingFinderCase(args: {
       rewardCurrency: policy?.currency ?? caseRow.rewardCurrency ?? "CDF",
       status: nextStatus,
       heldByFinder,
+      rewardFrozen: repairingSelfIncident ? false : caseRow.rewardFrozen,
+      rewardStatus: repairingSelfIncident ? "PENDING" : caseRow.rewardStatus,
       mediaRefs,
-      meta,
+      meta: repairingSelfIncident
+        ? {
+            ...meta,
+            recoveryFinderUserId: null,
+            antifraud: [],
+            aiAnomaly: null,
+            selfIncidentRepairedAt: new Date().toISOString(),
+          }
+        : meta,
       updatedAt: new Date(),
     })
     .where(eq(safefindCases.id, caseRow.id));
@@ -469,18 +505,24 @@ export async function declareFound(args: {
     linkedExisting = await findActiveCaseByDocumentHash({
       docHash,
       documentType: args.documentType,
+      declarantUserId: args.userId,
     });
   }
 
   const policy = await activeRewardPolicy(args.documentType);
 
   if (linkedExisting) {
+    const linkedMeta = (linkedExisting.meta ?? {}) as Record<string, unknown>;
     const collision = classifyFoundDeclarationCollision({
       declarantUserId: args.userId,
       existing: {
         initialFinderUserId: linkedExisting.initialFinderUserId,
         status: linkedExisting.status,
         currentPartnerId: linkedExisting.currentPartnerId,
+        recoveryFinderUserId:
+          typeof linkedMeta.recoveryFinderUserId === "string"
+            ? linkedMeta.recoveryFinderUserId
+            : null,
       },
     });
 
