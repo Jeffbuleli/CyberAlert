@@ -319,16 +319,21 @@ async function resumeExistingFinderCase(args: {
     ? [{ kind: "preview", key: previewUrl, redacted: true as const }]
     : (caseRow.mediaRefs ?? []);
 
+  // Partner selected → DEPOSIT_PENDING (finder still holds until partner confirms).
+  // Never trust self-declared "already deposited" as custody.
   let nextStatus = caseRow.status as SafefindCaseStatus;
-  const possession = input.possessionMode ?? (input.partnerIdHint ? "deposited" : "held");
   let heldByFinder = caseRow.heldByFinder;
-
-  if (possession === "held") {
+  if (input.partnerIdHint) {
+    nextStatus = "DEPOSIT_PENDING";
+    heldByFinder = true;
+  } else if (
+    caseRow.status === "FOUND" ||
+    caseRow.status === "REGISTERED" ||
+    caseRow.status === "HELD_BY_FINDER" ||
+    caseRow.status === "DEPOSIT_PENDING"
+  ) {
     nextStatus = "HELD_BY_FINDER";
     heldByFinder = true;
-  } else if (input.partnerIdHint) {
-    nextStatus = "DEPOSIT_PENDING";
-    heldByFinder = false;
   }
 
   await db
@@ -811,8 +816,9 @@ export async function declareFound(args: {
     actorUserId: args.userId,
   });
 
-  let nextStatus: SafefindCaseStatus = "REGISTERED";
-  const possession = args.possessionMode ?? (args.partnerIdHint ? "deposited" : "held");
+  // Custody rule: only the partner agent can mark DEPOSITED_AT_PARTNER.
+  // Selecting a point → DEPOSIT_PENDING (finder still holds the document).
+  // No partner yet → HELD_BY_FINDER.
   const baseMeta = {
     ...(caseRow.meta ?? {}),
     ...(args.partnerIdHint
@@ -822,59 +828,38 @@ export async function declareFound(args: {
         }
       : {}),
   };
-  if (possession === "held") {
-    nextStatus = "HELD_BY_FINDER";
-    await db
-      .update(safefindCases)
-      .set({
-        status: nextStatus,
-        heldByFinder: true,
-        updatedAt: new Date(),
-        meta: baseMeta,
-      })
-      .where(eq(safefindCases.id, caseRow.id));
-    if (args.partnerIdHint) {
-      await appendCustodyEvent({
-        caseId: caseRow.id,
-        eventType: "PARTNER_SELECTED",
-        actorUserId: args.userId,
-        actorRole: "finder",
-        partnerId: args.partnerIdHint,
-        newValue: { status: nextStatus, heldByFinder: true },
-      });
-    }
-    await appendCustodyEvent({
-      caseId: caseRow.id,
-      eventType: "HELD_BY_FINDER",
-      actorUserId: args.userId,
-      actorRole: "finder",
-      newValue: { status: nextStatus },
-    });
-  } else if (args.partnerIdHint) {
-    nextStatus = "DEPOSIT_PENDING";
-    await db
-      .update(safefindCases)
-      .set({
-        status: nextStatus,
-        heldByFinder: false,
-        updatedAt: new Date(),
-        meta: baseMeta,
-      })
-      .where(eq(safefindCases.id, caseRow.id));
+  const nextStatus: SafefindCaseStatus = args.partnerIdHint
+    ? "DEPOSIT_PENDING"
+    : "HELD_BY_FINDER";
+
+  await db
+    .update(safefindCases)
+    .set({
+      status: nextStatus,
+      heldByFinder: true,
+      updatedAt: new Date(),
+      meta: baseMeta,
+    })
+    .where(eq(safefindCases.id, caseRow.id));
+
+  if (args.partnerIdHint) {
     await appendCustodyEvent({
       caseId: caseRow.id,
       eventType: "PARTNER_SELECTED",
       actorUserId: args.userId,
       actorRole: "finder",
       partnerId: args.partnerIdHint,
-      newValue: { status: nextStatus },
+      newValue: { status: nextStatus, heldByFinder: true },
     });
-  } else {
-    await db
-      .update(safefindCases)
-      .set({ status: nextStatus, updatedAt: new Date() })
-      .where(eq(safefindCases.id, caseRow.id));
   }
+  await appendCustodyEvent({
+    caseId: caseRow.id,
+    eventType: "HELD_BY_FINDER",
+    actorUserId: args.userId,
+    actorRole: "finder",
+    partnerId: args.partnerIdHint ?? null,
+    newValue: { status: nextStatus, heldByFinder: true },
+  });
 
   let nearbyPartners: Awaited<ReturnType<typeof findNearestPartners>> = [];
   if (args.latitude != null && args.longitude != null) {
@@ -1385,7 +1370,12 @@ export async function acceptDeposit(args: {
   const allowed =
     isAssignedPartner ||
     (isSelectedPartner &&
-      ["DEPOSIT_PENDING", "REGISTERED", "FOUND"].includes(caseRow.status)) ||
+      [
+        "DEPOSIT_PENDING",
+        "HELD_BY_FINDER",
+        "REGISTERED",
+        "FOUND",
+      ].includes(caseRow.status)) ||
     (caseRow.status === "PARTNER_INCIDENT" && isAssignedPartner);
   if (!allowed) throw new Error("partner_case_forbidden");
 
@@ -1403,6 +1393,7 @@ export async function acceptDeposit(args: {
     .set({
       status: "DEPOSITED_AT_PARTNER",
       currentPartnerId: agent.partnerId,
+      heldByFinder: false,
       updatedAt: new Date(),
     })
     .where(eq(safefindCases.id, caseRow.id))

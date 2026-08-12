@@ -48,14 +48,13 @@ export function SafefindFoundPanel({
     previewToken: string;
   } | null>(null);
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
-  const [possessionMode, setPossessionMode] = useState<"held" | "deposited">("held");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<DoneState | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (location.partners.length > 0 && !selectedPartnerId) {
+    if (!selectedPartnerId) {
       setError("Choisissez un Point SafeFind pour le dépôt.");
       return;
     }
@@ -73,12 +72,12 @@ export function SafefindFoundPanel({
           commune: location.commune || undefined,
           quartier: location.quartier || location.landmark || undefined,
           visualNotes: visualNotes || undefined,
-          possessionMode,
+          possessionMode: "held",
           locationId: location.locationId || undefined,
           latitude: location.latitude ?? undefined,
           longitude: location.longitude ?? undefined,
           locationPrecision: location.precision || undefined,
-          partnerIdHint: selectedPartnerId ?? undefined,
+          partnerIdHint: selectedPartnerId,
           previewUrl: previewMeta?.previewUrl,
           previewToken: previewMeta?.previewToken,
         }),
@@ -173,8 +172,8 @@ export function SafefindFoundPanel({
                 {done.depositPartner.address ? ` · ${done.depositPartner.address}` : ""}
               </p>
               <p className="mt-2 text-xs text-[var(--ca-ink-muted)]">
-                Présentez ce dossier au guichet SafeFind du point ci-dessus. Le dépôt est
-                gratuit pour le trouveur.
+                Conservez la pièce jusqu’au dépôt. Le partenaire confirmera la réception
+                au guichet — le dépôt est gratuit pour le trouveur.
               </p>
             </div>
           ) : (
@@ -279,35 +278,14 @@ export function SafefindFoundPanel({
               onChange={(e) => setVisualNotes(e.target.value)}
             />
           </label>
-          <fieldset className="space-y-2 text-sm">
-            <legend className="text-[var(--ca-ink-muted)]">
-              Où se trouve actuellement le document ?
-            </legend>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="poss"
-                checked={possessionMode === "held"}
-                onChange={() => setPossessionMode("held")}
-              />
-              Je le détiens encore
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="poss"
-                checked={possessionMode === "deposited"}
-                onChange={() => setPossessionMode("deposited")}
-              />
-              Je l’ai déjà déposé chez un partenaire
-            </label>
-            {possessionMode === "held" ? (
-              <p className="text-xs text-[var(--ca-ink-muted)]">
-                Conservez le document en sécurité. Ne le remettez pas directement à une
-                personne qui prétend en être propriétaire. Utilisez uniquement SafeFind.
-              </p>
-            ) : null}
-          </fieldset>
+          <div className="rounded-xl border border-[var(--ca-border)]/70 bg-[var(--ca-surface-raised)]/60 px-3 py-3 text-xs text-[var(--ca-ink-muted)]">
+            <p className="font-medium text-[var(--ca-ink)]">Après Enregistrer</p>
+            <p className="mt-1">
+              Vous gardez la pièce et la déposez au Point SafeFind choisi. Seul le
+              partenaire confirme la réception — ne remettez jamais la pièce directement
+              au propriétaire.
+            </p>
+          </div>
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
           <button
             type="submit"
