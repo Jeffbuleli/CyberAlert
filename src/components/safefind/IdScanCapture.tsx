@@ -302,7 +302,7 @@ export function IdScanCapture({
           normalizeAiRegions(ai.blurRegions),
         ),
       );
-      applyBlurRegions(cropped, regions, 16);
+      applyBlurRegions(cropped, regions, 28);
       const redactedDataUrl = canvasToJpegDataUrl(cropped, 0.88);
 
       const storeRes = await fetch("/api/safefind/preview/store", {

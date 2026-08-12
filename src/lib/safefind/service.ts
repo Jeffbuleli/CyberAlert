@@ -33,6 +33,7 @@ import {
   toPublicCaseView,
 } from "./privacy";
 import { findNearestPartners } from "./location/nearby";
+import { computeRestitutionFees } from "./fees";
 import { onDocumentRefoundDecision } from "./reward-ownership";
 import { assertTransition, canTransition } from "./state-machine";
 import {
@@ -474,6 +475,10 @@ export async function declareFound(args: {
   const mediaRefs = previewUrl
     ? [{ kind: "preview", key: previewUrl, redacted: true as const }]
     : [];
+  const feeBreakdown = computeRestitutionFees(
+    args.documentType,
+    policy?.baseReward ?? null,
+  );
   const [caseRow] = await db
     .insert(safefindCases)
     .values({
@@ -497,13 +502,16 @@ export async function declareFound(args: {
       rewardCurrency: policy?.currency ?? "CDF",
       rewardStatus: "PENDING",
       mediaRefs,
-      meta: previewUrl
-        ? {
-            previewUrl,
-            previewToken: args.previewToken ?? null,
-            listingSummary: `${docLabelShort(args.documentType)} - photo marketplace`,
-          }
-        : {},
+      meta: {
+        ...(previewUrl
+          ? {
+              previewUrl,
+              previewToken: args.previewToken ?? null,
+              listingSummary: `${docLabelShort(args.documentType)} - photo marketplace`,
+            }
+          : {}),
+        feeBreakdown,
+      },
     })
     .returning();
 
@@ -548,7 +556,12 @@ export async function declareFound(args: {
   const possession = args.possessionMode ?? (args.partnerIdHint ? "deposited" : "held");
   const baseMeta = {
     ...(caseRow.meta ?? {}),
-    ...(args.partnerIdHint ? { selectedPartnerId: args.partnerIdHint } : {}),
+    ...(args.partnerIdHint
+      ? {
+          selectedPartnerId: args.partnerIdHint,
+          suggestedPartnerId: args.partnerIdHint,
+        }
+      : {}),
   };
   if (possession === "held") {
     nextStatus = "HELD_BY_FINDER";
@@ -1060,15 +1073,17 @@ export async function acceptDeposit(args: {
     .limit(1);
   if (!caseRow) throw new Error("case_not_found");
 
-  // Partner may only act on cases assigned to them or pending deposit with their hint
-  const suggested = (caseRow.meta as Record<string, unknown>)?.suggestedPartnerId;
+  // Partner may only act on cases assigned/selected for them.
+  const meta = (caseRow.meta ?? {}) as Record<string, unknown>;
+  const selectedPartnerId =
+    meta.selectedPartnerId ?? meta.suggestedPartnerId ?? null;
+  const isAssignedPartner = caseRow.currentPartnerId === agent.partnerId;
+  const isSelectedPartner = selectedPartnerId === agent.partnerId;
   const allowed =
-    caseRow.currentPartnerId === agent.partnerId ||
-    suggested === agent.partnerId ||
-    caseRow.status === "DEPOSIT_PENDING" ||
-    caseRow.status === "REGISTERED" ||
-    caseRow.status === "FOUND" ||
-    caseRow.status === "PARTNER_INCIDENT";
+    isAssignedPartner ||
+    (isSelectedPartner &&
+      ["DEPOSIT_PENDING", "REGISTERED", "FOUND"].includes(caseRow.status)) ||
+    (caseRow.status === "PARTNER_INCIDENT" && isAssignedPartner);
   if (!allowed) throw new Error("partner_case_forbidden");
 
   if (!args.documentPresent) throw new Error("document_not_present");
@@ -1492,7 +1507,10 @@ export async function releaseToOwner(args: {
   if (caseRow.currentPartnerId !== agent.partnerId) {
     throw new Error("partner_case_forbidden");
   }
-  if (caseRow.status !== "READY_FOR_COLLECTION") {
+  if (
+    caseRow.status !== "READY_FOR_COLLECTION" &&
+    caseRow.status !== "READY_FOR_PICKUP"
+  ) {
     throw new Error("not_ready");
   }
   if (
@@ -1534,16 +1552,24 @@ export async function releaseToOwner(args: {
   // Ensure single reward row
   const beneficiary = caseRow.rewardOwnerUserId ?? caseRow.initialFinderUserId;
   if (beneficiary && caseRow.rewardAmount && !caseRow.rewardFrozen) {
+    const fees = computeRestitutionFees(
+      caseRow.documentType as SafefindDocType,
+      caseRow.rewardAmount,
+    );
     await db
       .insert(safefindRewards)
       .values({
         caseId: caseRow.id,
         beneficiaryUserId: beneficiary,
-        amount: caseRow.rewardAmount,
+        amount: fees.finderNetPayout,
         currency: caseRow.rewardCurrency ?? "CDF",
         status: "AUTHORIZED",
         authorizedAt: new Date(),
         payoutReference: randomUUID(),
+        meta: {
+          feeBreakdown: fees,
+          grossReward: fees.baseReward,
+        },
       })
       .onConflictDoNothing();
 

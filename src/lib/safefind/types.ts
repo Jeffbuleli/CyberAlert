@@ -164,9 +164,9 @@ export const SAFEFIND_DEFAULT_REWARDS: Record<
   SafefindDocType,
   { base: string; maxBonus: string }
 > = {
-  carte_electeur: { base: "5000", maxBonus: "0" },
-  permis_conduire: { base: "10000", maxBonus: "0" },
-  passeport: { base: "20000", maxBonus: "0" },
+  carte_electeur: { base: "10000", maxBonus: "0" },
+  permis_conduire: { base: "20000", maxBonus: "0" },
+  passeport: { base: "30000", maxBonus: "0" },
 };
 
 export function isSafefindCaseStatus(s: string): s is SafefindCaseStatus {

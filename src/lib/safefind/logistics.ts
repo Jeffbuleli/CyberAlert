@@ -19,6 +19,7 @@ import {
   safefindDeliveryFeePolicies,
 } from "@/db";
 import { canTransition, isSensitiveActionBlocked } from "./state-machine";
+import { ownerPaymentBreakdown } from "./fees";
 import {
   SAFEFIND_DEFAULT_CONFIG,
   capacityStatusFromPct,
@@ -840,23 +841,43 @@ export async function confirmReturnToPartner(args: {
 
 /** Public fee breakdown for owner UI - no mystery totals. */
 export function feeBreakdown(args: {
+  documentType?: import("@/lib/safefind/types").SafefindDocType;
   rewardAmount: string | null;
-  deliveryFee: string | null;
-  partnerCommission?: string | null;
-  platformFee?: string | null;
+  deliveryFee?: string | null;
   currency: string;
 }) {
+  if (args.documentType) {
+    const b = ownerPaymentBreakdown({
+      documentType: args.documentType,
+      baseReward: args.rewardAmount,
+      deliveryFee: args.deliveryFee ?? null,
+    });
+    return {
+      baseReward: b.baseReward,
+      transactionFee: b.transactionFee,
+      finderReward: b.finderNetPayout,
+      partnerCommission: b.partnerCommission,
+      platformFee: b.treasury,
+      finderNetworkFee: b.finderNetworkFee,
+      deliveryFee: b.deliveryFee,
+      currency: args.currency,
+      total: b.totalDue,
+      ownerTotal: b.ownerTotal,
+    };
+  }
   const reward = Number(args.rewardAmount ?? 0);
   const delivery = Number(args.deliveryFee ?? 0);
-  const partner = Number(args.partnerCommission ?? 0);
-  const platform = Number(args.platformFee ?? 0);
   return {
+    baseReward: String(reward),
+    transactionFee: "0",
     finderReward: String(reward),
+    partnerCommission: "0",
+    platformFee: "0",
+    finderNetworkFee: "0",
     deliveryFee: String(delivery),
-    partnerCommission: String(partner),
-    platformFee: String(platform),
     currency: args.currency,
-    total: String(reward + delivery + partner + platform),
+    total: String(reward + delivery),
+    ownerTotal: String(reward),
   };
 }
 

@@ -120,13 +120,16 @@ describe("capacity and routing - Test I", () => {
 describe("privacy and fees - Test G N O", () => {
   it("fee breakdown is explicit", () => {
     const b = feeBreakdown({
-      rewardAmount: "5000",
+      documentType: "carte_electeur",
+      rewardAmount: "10000",
       deliveryFee: "8000",
       currency: "CDF",
     });
-    assert.equal(b.finderReward, "5000");
+    assert.equal(b.baseReward, "10000");
+    assert.equal(b.transactionFee, "500");
+    assert.equal(b.finderReward, "7950");
     assert.equal(b.deliveryFee, "8000");
-    assert.equal(b.total, "13000");
+    assert.equal(b.total, "18500");
   });
 
   it("owner facing summary never includes finder identity", () => {

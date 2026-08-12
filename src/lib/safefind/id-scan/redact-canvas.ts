@@ -69,7 +69,7 @@ export function guideCropRect(
 export function applyBlurRegions(
   canvas: HTMLCanvasElement,
   regions: BlurRegion[],
-  blurPx = 14,
+  blurPx = 24,
 ): HTMLCanvasElement {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas_unavailable");
@@ -84,8 +84,10 @@ export function applyBlurRegions(
     ctx.save();
     ctx.filter = `blur(${blurPx}px)`;
     ctx.drawImage(canvas, rx, ry, rw, rh, rx, ry, rw, rh);
+    ctx.filter = `blur(${Math.round(blurPx * 0.65)}px)`;
+    ctx.drawImage(canvas, rx, ry, rw, rh, rx, ry, rw, rh);
     ctx.restore();
-    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillStyle = "rgba(235,235,235,0.82)";
     ctx.fillRect(rx, ry, rw, rh);
   }
   return canvas;

@@ -80,10 +80,24 @@ async function redactSpecimen(input: Buffer, documentType: Specimen["documentTyp
     const height = Math.min(h - top, Math.max(1, Math.round(r.h * h)));
     const blurred = await sharp(await current.toBuffer())
       .extract({ left, top, width, height })
-      .blur(14)
+      .blur(24)
       .toBuffer();
     current = sharp(await current.toBuffer()).composite([
       { input: blurred, left, top },
+      {
+        input: await sharp({
+          create: {
+            width,
+            height,
+            channels: 4,
+            background: { r: 235, g: 235, b: 235, alpha: 0.82 },
+          },
+        })
+          .png()
+          .toBuffer(),
+        left,
+        top,
+      },
     ]);
   }
 
