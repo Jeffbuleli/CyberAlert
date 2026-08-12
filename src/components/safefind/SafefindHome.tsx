@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -25,26 +26,6 @@ function parseHubTab(raw: string | null): HubTab {
   if (raw === "mine" || raw === "dossiers") return "mine";
   if (raw === "orders" || raw === "restitutions") return "orders";
   return "marketplace";
-}
-
-function IconShield({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3.5 4.5 7v5.2c0 4.4 3.2 7.6 7.5 8.8 4.3-1.2 7.5-4.4 7.5-8.8V7L12 3.5Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M8.5 12.2 11 14.7l4.5-5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 export function SafefindHome() {
@@ -184,39 +165,21 @@ export function SafefindHome() {
     mode === "lost" ? "Déclarer une perte" : "Déclarer un trouvé";
 
   return (
-    <div className="mx-auto min-h-[100dvh] w-full max-w-lg px-4 pb-28 pt-6">
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--ca-accent)]/15 text-[var(--ca-accent)]">
-            <IconShield className="h-6 w-6" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-bold tracking-tight text-[var(--ca-ink)]">
-                SafeFind
-              </h1>
-              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
-                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M7 11V8a5 5 0 0 1 10 0v3"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                  <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                </svg>
-                Point partenaire
-              </span>
-            </div>
-            <p className="text-[11px] text-[var(--ca-ink-muted)]">
-              Cyber Alert RDC · carte, passeport, permis
-            </p>
-          </div>
-        </div>
+    <div className="mx-auto min-h-[100dvh] w-full max-w-lg px-4 pb-28 pt-4">
+      <header className="relative mb-4 -mx-4 overflow-hidden rounded-2xl shadow-sm sm:mx-0">
+        <Image
+          src="/safefind/hero-banner.jpg"
+          alt="Un document perdu peut retrouver son propriétaire — carte d'électeur, passeport, permis de conduire"
+          width={1024}
+          height={341}
+          priority
+          className="h-auto w-full object-cover object-center"
+          sizes="(max-width: 512px) 100vw, 512px"
+        />
         <button
           type="button"
           onClick={() => setRulesOpen(true)}
-          className="shrink-0 rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)] px-3 py-2 text-xs font-semibold text-[var(--ca-ink)]"
+          className="absolute right-3 top-3 rounded-xl border border-white/70 bg-white/90 px-3 py-2 text-xs font-semibold text-[var(--ca-ink)] shadow-sm backdrop-blur-sm"
         >
           Règles
         </button>
