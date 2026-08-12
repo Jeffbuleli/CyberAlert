@@ -60,7 +60,7 @@ export default function SafefindPartnerPage() {
     void refresh();
   }, [refresh]);
 
-  const activeCaseId = selectedId ?? manualId.trim().toUpperCase() || null;
+  const activeCaseId = selectedId ?? (manualId.trim().toUpperCase() || null);
 
   async function acceptDeposit(casePublicId: string) {
     setBusy(true);
