@@ -1,22 +1,23 @@
-import { Suspense } from "react";
-import { SafefindHome } from "@/components/safefind/SafefindHome";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "SafeFind - Cyber Alert RDC",
-  description:
-    "Carte d'électeur, passeport ou permis - retrouver et restituer via un Point SafeFind.",
-};
+/** Canonical SafeFind hub is now `/`. */
+export default function SafefindRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  return redirectFrom(searchParams);
+}
 
-export default function SafefindPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="mx-auto min-h-[100dvh] w-full max-w-lg px-4 pt-8 text-sm text-[var(--ca-ink-muted)]">
-          Chargement SafeFind…
-        </div>
-      }
-    >
-      <SafefindHome />
-    </Suspense>
-  );
+async function redirectFrom(
+  searchParams: Promise<Record<string, string | string[] | undefined>>,
+) {
+  const sp = await searchParams;
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (typeof v === "string") q.set(k, v);
+    else if (Array.isArray(v) && v[0]) q.set(k, v[0]);
+  }
+  const qs = q.toString();
+  redirect(qs ? `/?${qs}` : "/");
 }

@@ -7,11 +7,10 @@ import { BrandLogo } from "@/components/brand/logo";
 import { IconLock } from "@/components/icons";
 
 const links = [
-  { href: "/", label: "Vérifier" },
+  { href: "/", label: "SafeFind" },
   { href: "/report", label: "Signaler" },
   { href: "/developers", label: "Développeurs" },
   { href: "/business", label: "Entreprises" },
-  { href: "/safefind", label: "SafeFind" },
 ];
 
 export type HeaderUser = {
@@ -96,7 +95,10 @@ export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
 
         <nav className="hidden items-center gap-1 rounded-2xl border border-[var(--ca-border)] bg-white/80 p-1 shadow-[var(--ca-shadow-soft)] md:flex">
           {links.map((l) => {
-            const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+            const active =
+              l.href === "/"
+                ? pathname === "/" || pathname.startsWith("/safefind")
+                : pathname.startsWith(l.href);
             return (
               <Link
                 key={l.href}
@@ -156,7 +158,10 @@ export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
         <div className="border-t border-[var(--ca-border)] bg-white/95 px-3 py-3 backdrop-blur md:hidden">
           <nav className="mx-auto flex max-w-5xl flex-col gap-1">
             {links.map((l) => {
-              const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+              const active =
+                l.href === "/"
+                  ? pathname === "/" || pathname.startsWith("/safefind")
+                  : pathname.startsWith(l.href);
               return (
                 <Link
                   key={l.href}

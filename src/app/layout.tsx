@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { SiteFooter, SiteHeader } from "@/components/layout/site-chrome";
+import { SiteHeader } from "@/components/layout/site-chrome";
 import { getSessionUser } from "@/lib/auth/session";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
 import { PwaInstallBanner } from "@/components/pwa/install-banner";
@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
-    default: "Cyber Alert DRC - Vérifiez avant de faire confiance",
+    default: "SafeFind - Cyber Alert RDC",
     template: "%s | Cyber Alert DRC",
   },
   description:
-    "Vérifiez un lien avant de cliquer. Signalement, scans développeurs et audits pour la RDC.",
+    "Carte d'électeur, passeport ou permis - retrouver et restituer via un Point SafeFind.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3010"),
   applicationName: "Cyber Alert DRC",
   appleWebApp: {
@@ -50,8 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="fr">
       <body className="antialiased">
         <SiteHeader user={headerUser} />
-        <main className="min-h-[70vh]">{children}</main>
-        <SiteFooter />
+        <main className="min-h-[100dvh]">{children}</main>
         <RegisterServiceWorker />
         <PwaInstallBanner />
       </body>
