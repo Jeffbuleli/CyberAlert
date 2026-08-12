@@ -22,6 +22,10 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
   const [documentNumber, setDocumentNumber] = useState("");
   const [location, setLocation] = useState<PickedLocation>(emptyPickedLocation());
   const [visualNotes, setVisualNotes] = useState("");
+  const [previewMeta, setPreviewMeta] = useState<{
+    previewUrl: string;
+    previewToken: string;
+  } | null>(null);
   const [possessionMode, setPossessionMode] = useState<"held" | "deposited">("held");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +57,8 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
           longitude: location.longitude ?? undefined,
           locationPrecision: location.precision || undefined,
           partnerIdHint: location.partners[0]?.id,
+          previewUrl: previewMeta?.previewUrl,
+          previewToken: previewMeta?.previewToken,
         }),
       });
       const data = await res.json();
@@ -120,6 +126,7 @@ export function SafefindFoundPanel({ showHeading = true }: { showHeading?: boole
             setDocumentNumber={setDocumentNumber}
             setLocation={setLocation}
             setVisualNotes={setVisualNotes}
+            onPreviewCapture={setPreviewMeta}
           />
           <fieldset>
             <legend className="text-sm text-[var(--ca-ink-muted)]">Type de pièce</legend>

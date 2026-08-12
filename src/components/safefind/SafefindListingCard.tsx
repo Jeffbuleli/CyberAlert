@@ -93,21 +93,12 @@ export function SafefindListingCard({
 
       {listing.previewUrl ? (
         <div className="relative mx-4 mt-3 overflow-hidden rounded-xl border border-[var(--ca-border)] bg-[var(--ca-surface-2)]">
-          {/* Specimen / redacted preview: blur photo & MRZ zones for privacy */}
           <div className="relative aspect-[16/10] w-full overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={listing.previewUrl}
               alt=""
-              className="h-full w-full object-cover object-top opacity-90"
-            />
-            <div
-              className="pointer-events-none absolute inset-y-[12%] left-[4%] w-[28%] rounded-md bg-black/25 backdrop-blur-[6px]"
-              aria-hidden
-            />
-            <div
-              className="pointer-events-none absolute inset-x-[4%] bottom-[4%] h-[18%] rounded-md bg-black/35 backdrop-blur-[8px]"
-              aria-hidden
+              className="h-full w-full object-contain object-center"
             />
             {listing.isSpecimen ? (
               <span className="absolute left-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">

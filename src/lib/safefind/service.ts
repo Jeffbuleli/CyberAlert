@@ -174,6 +174,49 @@ async function transitionCase(
   return updated;
 }
 
+function docLabelShort(documentType: SafefindDocType): string {
+  const map: Record<SafefindDocType, string> = {
+    carte_electeur: "Carte d'électeur",
+    passeport: "Passeport",
+    permis_conduire: "Permis de conduire",
+  };
+  return map[documentType] ?? "Pièce d'identité";
+}
+
+/** Check if document number already has an active marketplace case. */
+export async function checkDocumentAlreadyListed(args: {
+  documentNumber: string;
+  documentType?: SafefindDocType;
+}): Promise<{ alreadyListed: boolean; message: string | null }> {
+  const db = getDb();
+  const docHash = hashDocumentNumber(args.documentNumber);
+  const filters = [eq(safefindCases.documentNumberHash, docHash)];
+  if (args.documentType) {
+    filters.push(eq(safefindCases.documentType, args.documentType));
+  }
+  const [hit] = await db
+    .select({
+      publicId: safefindCases.publicId,
+      status: safefindCases.status,
+    })
+    .from(safefindCases)
+    .where(
+      and(
+        ...filters,
+        sql`${safefindCases.status} not in ('CANCELLED','EXPIRED','REWARD_RELEASED')`,
+      ),
+    )
+    .limit(1);
+  if (!hit) {
+    return { alreadyListed: false, message: null };
+  }
+  return {
+    alreadyListed: true,
+    message:
+      "Une fiche similaire existe déjà dans SafeFind. Vérifiez le Marketplace ou contactez un Point partenaire.",
+  };
+}
+
 export async function declareFound(args: {
   userId: string;
   documentType: SafefindDocType;
@@ -192,6 +235,8 @@ export async function declareFound(args: {
   latitude?: number | null;
   longitude?: number | null;
   locationPrecision?: string;
+  previewUrl?: string;
+  previewToken?: string;
 }) {
   const db = getDb();
   await ensureDefaultRewardPolicies();
@@ -425,6 +470,10 @@ export async function declareFound(args: {
   }
 
   const publicId = await nextPublicCaseId();
+  const previewUrl = args.previewUrl ?? null;
+  const mediaRefs = previewUrl
+    ? [{ kind: "preview", key: previewUrl, redacted: true as const }]
+    : [];
   const [caseRow] = await db
     .insert(safefindCases)
     .values({
@@ -447,6 +496,14 @@ export async function declareFound(args: {
       rewardAmount: policy?.baseReward ?? null,
       rewardCurrency: policy?.currency ?? "CDF",
       rewardStatus: "PENDING",
+      mediaRefs,
+      meta: previewUrl
+        ? {
+            previewUrl,
+            previewToken: args.previewToken ?? null,
+            listingSummary: `${docLabelShort(args.documentType)} - photo marketplace`,
+          }
+        : {},
     })
     .returning();
 

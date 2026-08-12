@@ -6,7 +6,10 @@ import {
   emptyPickedLocation,
   type PickedLocation,
 } from "@/components/safefind/LocationPicker";
-import { IdScanCapture } from "@/components/safefind/IdScanCapture";
+import {
+  IdScanCapture,
+  type DocumentCaptureResult,
+} from "@/components/safefind/IdScanCapture";
 import type { ParsedIdFields } from "@/lib/safefind/id-scan/parse";
 
 type Props = {
@@ -17,6 +20,10 @@ type Props = {
   setDocumentNumber: (v: string) => void;
   setLocation: (v: PickedLocation) => void;
   setVisualNotes?: (v: string) => void;
+  onPreviewCapture?: (preview: {
+    previewUrl: string;
+    previewToken: string;
+  }) => void;
   scanLabel?: string;
 };
 
@@ -28,7 +35,8 @@ export function SafefindAssistFields({
   setDocumentNumber,
   setLocation,
   setVisualNotes,
-  scanLabel = "Scanner la pièce (QR / MRZ)",
+  onPreviewCapture,
+  scanLabel = "Photographier la pièce",
 }: Props) {
   const [freeText, setFreeText] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
@@ -45,7 +53,18 @@ export function SafefindAssistFields({
       setVisualNotes(`Année de naissance: ${fields.birthDate.slice(0, 4)}`);
     }
     setSuggested(true);
-    setAiHint("Champs préremplis depuis le scan - vérifiez avant d'envoyer.");
+    setAiHint("Champs préremplis - vérifiez avant d'envoyer.");
+  }
+
+  function applyDocumentCapture(result: DocumentCaptureResult) {
+    applyScan(result.fields);
+    onPreviewCapture?.({
+      previewUrl: result.previewUrl,
+      previewToken: result.previewToken,
+    });
+    if (result.duplicateWarning) {
+      setAiHint(result.duplicateWarning);
+    }
   }
 
   async function runNlParse() {
@@ -141,7 +160,12 @@ export function SafefindAssistFields({
 
   return (
     <div className="space-y-3">
-      <IdScanCapture onParsed={applyScan} label={scanLabel} />
+      <IdScanCapture
+        onParsed={applyScan}
+        onDocumentCapture={applyDocumentCapture}
+        documentTypeHint={documentType}
+        label={scanLabel}
+      />
       <label className="block text-sm">
         <span className="text-[var(--ca-ink-muted)]">Décrire librement (FR / Lingala)</span>
         <textarea

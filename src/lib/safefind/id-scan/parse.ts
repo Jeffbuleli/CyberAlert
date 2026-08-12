@@ -9,7 +9,7 @@ export type ParsedIdFields = {
   holderLastName: string | null;
   documentNumber: string | null;
   birthDate: string | null;
-  source: "mrz" | "qr" | "barcode" | "manual";
+  source: "mrz" | "qr" | "barcode" | "manual" | "photo";
   confidence: number;
   rawKind: string;
 };

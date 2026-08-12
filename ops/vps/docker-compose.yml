@@ -56,12 +56,15 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyberalert}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cyberalert}
       AI_GATEWAY_URL: http://ai:8090
+      SAFEFIND_PREVIEW_DIR: /app/data/safefind-previews
       # inprocess (default) | external — only set external when deep-worker profile is running
       DEEP_WORKER_MODE: ${DEEP_WORKER_MODE:-inprocess}
       PORT: "3010"
       HOSTNAME: "0.0.0.0"
     ports:
       - "127.0.0.1:3010:3010"
+    volumes:
+      - cyberalert_previews:/app/data/safefind-previews
 
   # Prepared for Phase D external queue consumer — NOT started by default.
   # Activate later: docker compose --profile deep up -d deep-worker
@@ -91,3 +94,4 @@ services:
 
 volumes:
   cyberalert_pgdata:
+  cyberalert_previews:

@@ -20,6 +20,8 @@ const bodyZ = z.object({
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   locationPrecision: z.string().max(32).optional(),
+  previewUrl: z.string().max(256).optional(),
+  previewToken: z.string().regex(/^[a-f0-9]{32}$/).optional(),
 });
 
 export async function POST(req: Request) {
@@ -58,6 +60,8 @@ export async function POST(req: Request) {
       latitude: parsed.data.latitude,
       longitude: parsed.data.longitude,
       locationPrecision: parsed.data.locationPrecision,
+      previewUrl: parsed.data.previewUrl,
+      previewToken: parsed.data.previewToken,
     });
 
     // Never leak silent link of prior case to recovery finder

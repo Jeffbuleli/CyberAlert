@@ -2,6 +2,20 @@
  * McBuleli AI assist for SafeFind - signals only, never ownership/reward authority.
  */
 
+export type SafefindParseDocumentResult = {
+  documentType: "carte_electeur" | "passeport" | "permis_conduire" | null;
+  holderFirstName: string | null;
+  holderLastName: string | null;
+  holderPostName: string | null;
+  documentNumber: string | null;
+  birthDate: string | null;
+  birthPlace: string | null;
+  confidence: number;
+  cropBox: { x: number; y: number; w: number; h: number } | null;
+  blurRegions: Array<{ x: number; y: number; w: number; h: number; field?: string }>;
+  provider: "mcbuleli-ai" | "template";
+};
+
 export type SafefindParseDeclarationResult = {
   documentType: "carte_electeur" | "passeport" | "permis_conduire" | null;
   holderFirstName: string | null;
@@ -288,6 +302,14 @@ async function callOpenAiJson(
   }
 }
 
+const DOCUMENT_VISION_SYSTEM =
+  "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Analyse une photo de pièce " +
+  "d'identité congolaise. JSON strict: documentType, holderFirstName, holderLastName, " +
+  "holderPostName, documentNumber, birthDate (YYYY-MM-DD|null), birthPlace, confidence (0-1), " +
+  "cropBox {x,y,w,h} zone utile 0-1, blurRegions [{x,y,w,h,field}] valeurs sensibles " +
+  "à brouiller (NN, nom, postnom, prénom, dates/lieu naissance, QR, MRZ, n° sous photo). " +
+  "NE PAS brouiller la photo portrait. Passeport: cropBox = page biodata seulement.";
+
 const PARSE_SYSTEM =
   "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Reformule et extrais des champs " +
   "depuis une déclaration FR/Lingala sur carte_electeur, passeport ou permis_conduire. " +
@@ -321,6 +343,140 @@ function strOrNull(v: unknown, max = 128): string | null {
   if (typeof v !== "string") return null;
   const t = v.replace(/\u2014/g, "-").trim();
   return t ? t.slice(0, max) : null;
+}
+
+async function callOpenAiVisionJson(
+  system: string,
+  imageBase64: string,
+  userText: string,
+): Promise<Record<string, unknown> | null> {
+  const cfg = gatewayConfig();
+  if (!cfg.openaiKey || !imageBase64) return null;
+  const model = "gpt-4o-mini";
+  try {
+    const res = await fetch(`${cfg.openaiBase}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.05,
+        max_tokens: 1400,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userText.slice(0, 1200) },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64.slice(0, 2_000_000)}`,
+                  detail: "high",
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(28_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) return null;
+    return JSON.parse(content) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeCropBox(raw: unknown): SafefindParseDocumentResult["cropBox"] {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const x = Number(r.x);
+  const y = Number(r.y);
+  const w = Number(r.w ?? r.width);
+  const h = Number(r.h ?? r.height);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || w <= 0 || h <= 0) return null;
+  return {
+    x: Math.max(0, Math.min(1, x)),
+    y: Math.max(0, Math.min(1, y)),
+    w: Math.max(0.01, Math.min(1, w)),
+    h: Math.max(0.01, Math.min(1, h)),
+  };
+}
+
+function normalizeBlurRegions(raw: unknown): SafefindParseDocumentResult["blurRegions"] {
+  if (!Array.isArray(raw)) return [];
+  const out: SafefindParseDocumentResult["blurRegions"] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    const x = Number(r.x);
+    const y = Number(r.y);
+    const w = Number(r.w ?? r.width);
+    const h = Number(r.h ?? r.height);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || w <= 0 || h <= 0) continue;
+    out.push({
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, y)),
+      w: Math.max(0.01, Math.min(1, w)),
+      h: Math.max(0.01, Math.min(1, h)),
+      field: typeof r.field === "string" ? r.field : undefined,
+    });
+  }
+  return out;
+}
+
+export async function safefindParseDocumentImage(args: {
+  imageBase64: string;
+  documentTypeHint?: string;
+}): Promise<SafefindParseDocumentResult> {
+  const hint = args.documentTypeHint ?? "";
+  const userText = `Type attendu: ${hint || "auto"}. Extrais champs et zones à brouiller.`;
+  const raw =
+    (await callGatewayJson("/v1/safefind/parse-document", {
+      imageBase64: args.imageBase64,
+      documentTypeHint: hint,
+    })) ??
+    (await callOpenAiVisionJson(DOCUMENT_VISION_SYSTEM, args.imageBase64, userText));
+
+  const fallbackType = normalizeDocType(hint);
+  if (!raw) {
+    return {
+      documentType: fallbackType,
+      holderFirstName: null,
+      holderLastName: null,
+      holderPostName: null,
+      documentNumber: null,
+      birthDate: null,
+      birthPlace: null,
+      confidence: 0.15,
+      cropBox: { x: 0.04, y: 0.06, w: 0.92, h: 0.88 },
+      blurRegions: [],
+      provider: "template",
+    };
+  }
+
+  return {
+    documentType: normalizeDocType(raw.documentType) ?? fallbackType,
+    holderFirstName: strOrNull(raw.holderFirstName, 64),
+    holderLastName: strOrNull(raw.holderLastName, 64),
+    holderPostName: strOrNull(raw.holderPostName, 64),
+    documentNumber: strOrNull(raw.documentNumber, 64)?.toUpperCase() ?? null,
+    birthDate: strOrNull(raw.birthDate, 10),
+    birthPlace: strOrNull(raw.birthPlace, 120),
+    confidence: Math.max(0, Math.min(1, Number(raw.confidence ?? 0.5))),
+    cropBox: normalizeCropBox(raw.cropBox),
+    blurRegions: normalizeBlurRegions(raw.blurRegions),
+    provider: "mcbuleli-ai",
+  };
 }
 
 export async function safefindParseDeclaration(

@@ -420,6 +420,66 @@ SAFEFIND_ANOMALY_SYSTEM = (
     "explanation (string courte FR). Tu signales seulement."
 )
 
+SAFEFIND_DOCUMENT_VISION_SYSTEM = (
+    "Tu es McBuleli AI pour SafeFind (Cyber Alert RDC). Analyse une photo de pièce "
+    "d'identité congolaise (carte_electeur, passeport, permis_conduire). "
+    "Extrais les champs et localise les VALEURS sensibles à brouiller (pas les labels). "
+    "JSON strict: documentType (carte_electeur|passeport|permis_conduire|null), "
+    "holderFirstName, holderLastName, holderPostName, documentNumber, birthDate (YYYY-MM-DD|null), "
+    "birthPlace, confidence (0-1), "
+    "cropBox {x,y,w,h} zone utile normalisée 0-1 (page données passeport ou recto carte), "
+    "blurRegions [{x,y,w,h,field}] rectangles normalisés 0-1 sur l'image recadrée pour "
+    "brouiller: numéro document/NN, nom, postnom, prénom, date/lieu naissance, QR, MRZ, "
+    "numéro sous photo. NE PAS inclure la zone photo portrait dans blurRegions. "
+    "Pour passeport: cropBox = page biodata uniquement. Remplace — par -."
+)
+
+
+async def openai_vision_json(
+    system: str,
+    image_b64: str,
+    user_text: str,
+) -> Optional[Dict[str, Any]]:
+    if not OPENAI_API_KEY or not image_b64:
+        return None
+    vision_model = "gpt-4o-mini"
+    payload: Dict[str, Any] = {
+        "model": vision_model,
+        "temperature": 0.05,
+        "max_tokens": 1400,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": system},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_text[:1200]},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_b64[:2_000_000]}",
+                            "detail": "high",
+                        },
+                    },
+                ],
+            },
+        ],
+    }
+    async with httpx.AsyncClient(timeout=28.0) as client:
+        res = await client.post(
+            f"{OPENAI_BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        if res.status_code >= 400:
+            return None
+        data = res.json()
+        content = data["choices"][0]["message"]["content"]
+    return json.loads(content)
+
 
 async def openai_json(system: str, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not OPENAI_API_KEY:
@@ -552,4 +612,32 @@ async def safefind_anomaly_hint(
             if reasons
             else "Aucune anomalie évidente."
         ),
+    }
+
+
+@app.post("/v1/safefind/parse-document")
+async def safefind_parse_document(
+    body: Dict[str, Any],
+    _: None = Depends(require_auth),
+) -> Dict[str, Any]:
+    image_b64 = str(body.get("imageBase64") or "").strip()
+    hint = str(body.get("documentTypeHint") or "")
+    user_text = (
+        f"Type attendu: {hint or 'auto'}. "
+        "Lis la pièce, extrais champs et blurRegions (valeurs seulement, photo visible)."
+    )
+    ai = await openai_vision_json(SAFEFIND_DOCUMENT_VISION_SYSTEM, image_b64, user_text)
+    if ai:
+        return ai
+    return {
+        "documentType": hint if hint in ("carte_electeur", "passeport", "permis_conduire") else None,
+        "holderFirstName": None,
+        "holderLastName": None,
+        "holderPostName": None,
+        "documentNumber": None,
+        "birthDate": None,
+        "birthPlace": None,
+        "confidence": 0.15,
+        "cropBox": {"x": 0.04, "y": 0.06, "w": 0.92, "h": 0.88},
+        "blurRegions": [],
     }
