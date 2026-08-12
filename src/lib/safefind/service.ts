@@ -1195,6 +1195,106 @@ const READY_PICKUP_STATUSES = [
   "PICKUP_RESERVED",
 ] as const;
 
+const FINDER_PRE_DEPOSIT_STATUSES = [
+  "DEPOSIT_PENDING",
+  "HELD_BY_FINDER",
+  "REGISTERED",
+  "FOUND",
+] as const;
+
+export type CaseDetailForViewer = {
+  case: ReturnType<typeof toPublicCaseView>;
+  viewerRole: "finder" | "owner" | "reward" | null;
+  depositPartner: PartnerDepositView | null;
+  phase:
+    | "finder_awaiting_deposit"
+    | "finder_published"
+    | "owner_claim"
+    | "owner_lost"
+    | "owner_restitution"
+    | "readonly";
+  canClaim: boolean;
+};
+
+export async function getCaseDetailForViewer(
+  publicId: string,
+  userId?: string | null,
+): Promise<CaseDetailForViewer | null> {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(safefindCases)
+    .where(eq(safefindCases.publicId, publicId))
+    .limit(1);
+  if (!row) return null;
+
+  let viewerRole: CaseDetailForViewer["viewerRole"] = null;
+  if (userId) {
+    if (row.initialFinderUserId === userId) viewerRole = "finder";
+    else if (row.ownerUserId === userId) viewerRole = "owner";
+    else if (row.rewardOwnerUserId === userId) viewerRole = "reward";
+  }
+
+  const marketplaceVisible = (
+    SAFEFIND_MARKETPLACE_STATUSES as readonly string[]
+  ).includes(row.status);
+
+  if (!viewerRole && !marketplaceVisible) {
+    return null;
+  }
+
+  const meta = (row.meta ?? {}) as Record<string, unknown>;
+  const partnerHintId =
+    row.currentPartnerId ??
+    (typeof meta.selectedPartnerId === "string"
+      ? meta.selectedPartnerId
+      : typeof meta.suggestedPartnerId === "string"
+        ? meta.suggestedPartnerId
+        : null);
+  const depositPartner = partnerHintId
+    ? await getPartnerDepositView(partnerHintId)
+    : null;
+
+  const terminal = ["RETURNED", "CANCELLED", "REWARD_RELEASED", "EXPIRED"].includes(
+    row.status,
+  );
+
+  let phase: CaseDetailForViewer["phase"] = "readonly";
+  if (viewerRole === "finder") {
+    if ((FINDER_PRE_DEPOSIT_STATUSES as readonly string[]).includes(row.status)) {
+      phase = "finder_awaiting_deposit";
+    } else if (marketplaceVisible) {
+      phase = "finder_published";
+    }
+  } else if (viewerRole === "owner") {
+    if (row.status === "LOST") {
+      phase = "owner_lost";
+    } else if (
+      (SAFEFIND_ACTIVE_RESTITUTION_STATUSES as readonly string[]).includes(row.status)
+    ) {
+      phase = "owner_restitution";
+    } else {
+      phase = "owner_claim";
+    }
+  } else if (marketplaceVisible && !terminal) {
+    phase = "owner_claim";
+  }
+
+  const canClaim =
+    phase === "owner_claim" &&
+    viewerRole !== "finder" &&
+    marketplaceVisible &&
+    !terminal;
+
+  return {
+    case: toPublicCaseView(row),
+    viewerRole,
+    depositPartner,
+    phase,
+    canClaim,
+  };
+}
+
 export type MarketplaceListing = ReturnType<typeof toPublicCaseView> & {
   partner: { id: string; name: string; commune: string } | null;
   documentNumberLast4: string | null;
