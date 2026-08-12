@@ -1198,6 +1198,8 @@ const READY_PICKUP_STATUSES = [
 export type MarketplaceListing = ReturnType<typeof toPublicCaseView> & {
   partner: { id: string; name: string; commune: string } | null;
   documentNumberLast4: string | null;
+  /** Set on /api/safefind/mine only */
+  myRole?: "finder" | "owner" | "reward";
 };
 
 export async function listMarketplaceCases(args: {
@@ -1365,9 +1367,18 @@ export async function listMySafefindCases(args: {
           ? meta.suggestedPartnerId
           : null;
     const fallback = selectedId ? metaPartnerById.get(selectedId) : null;
+    const myRole =
+      r.case.initialFinderUserId === args.userId
+        ? ("finder" as const)
+        : r.case.ownerUserId === args.userId
+          ? ("owner" as const)
+          : r.case.rewardOwnerUserId === args.userId
+            ? ("reward" as const)
+            : undefined;
     return {
       ...view,
       documentNumberLast4: r.case.documentNumberLast4 ?? null,
+      myRole,
       partner:
         r.partnerId && r.partnerName
           ? {
@@ -1978,7 +1989,48 @@ export async function getPartnerAgent(userId: string) {
       ),
     )
     .limit(1);
-  return row ?? null;
+  if (row) return row;
+  return provisionStaffPartnerAgent(userId);
+}
+
+/** Auto-link admin/developer accounts to Point SafeFind Gombe (partner_admin). */
+async function provisionStaffPartnerAgent(userId: string) {
+  const db = getDb();
+  const [user] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user || !["admin", "developer"].includes(user.role)) return null;
+
+  const [partner] = await db
+    .select({ id: safefindPartners.id })
+    .from(safefindPartners)
+    .where(eq(safefindPartners.name, "Point SafeFind Gombe"))
+    .limit(1);
+  if (!partner) return null;
+
+  await db
+    .insert(safefindPartnerAgents)
+    .values({
+      partnerId: partner.id,
+      userId,
+      role: "partner_admin",
+      active: true,
+    })
+    .onConflictDoNothing();
+
+  const [linked] = await db
+    .select()
+    .from(safefindPartnerAgents)
+    .where(
+      and(
+        eq(safefindPartnerAgents.userId, userId),
+        eq(safefindPartnerAgents.active, true),
+      ),
+    )
+    .limit(1);
+  return linked ?? null;
 }
 
 export async function listPartnerCustody(agentUserId: string) {

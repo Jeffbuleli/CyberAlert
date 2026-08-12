@@ -20,7 +20,13 @@ export type SafefindListing = {
   rewardHint?: { amount: string; currency: string } | null;
   createdAt: string;
   partner: { id: string; name: string; commune: string } | null;
+  myRole?: "finder" | "owner" | "reward";
 };
+
+export type SafefindCardView =
+  | { kind: "marketplace" }
+  | { kind: "mine"; myRole: "finder" | "owner" | "reward" }
+  | { kind: "orders"; myRole: "finder" | "owner" | "reward" };
 
 function docLabel(type: string) {
   return SAFEFIND_DOC_OPTIONS.find((d) => d.value === type)?.label ?? type;
@@ -36,6 +42,7 @@ function statusLabel(status: string) {
     declare: "Déclaré",
     enregistre: "Enregistré",
     depot_en_attente: "Dépôt en attente",
+    chez_trouveur: "Chez le trouveur",
     livraison: "Livraison",
     remis: "Remis",
     restitue: "Restitué",
@@ -45,15 +52,57 @@ function statusLabel(status: string) {
   return map[status] ?? status;
 }
 
+function cardBadge(view: SafefindCardView) {
+  if (view.kind === "marketplace") {
+    return { label: "PIÈCE TROUVÉE", tone: "found" as const };
+  }
+  if (view.kind === "orders") {
+    return { label: "RESTITUTION", tone: "found" as const };
+  }
+  if (view.myRole === "owner") {
+    return { label: "MA PERTE", tone: "lost" as const };
+  }
+  return { label: "MON TROUVÉ", tone: "found" as const };
+}
+
+function cardCta(view: SafefindCardView, publicId: string) {
+  if (view.kind === "marketplace") {
+    return {
+      href: `/safefind/cases/${publicId}`,
+      label: "C’est le mien",
+      className: "bg-[var(--ca-accent)] hover:opacity-95",
+    };
+  }
+  if (view.kind === "orders") {
+    return {
+      href: `/safefind/cases/${publicId}`,
+      label: "Suivre restitution",
+      className: "bg-emerald-700 hover:bg-emerald-800",
+    };
+  }
+  if (view.myRole === "owner") {
+    return {
+      href: `/safefind/cases/${publicId}`,
+      label: "Suivre ma déclaration",
+      className: "bg-amber-500 hover:opacity-95",
+    };
+  }
+  return {
+    href: `/safefind/cases/${publicId}`,
+    label: "Voir mon dossier",
+    className: "bg-emerald-700 hover:bg-emerald-800",
+  };
+}
+
 export function SafefindListingCard({
   listing,
-  mode,
-  onFoundCta,
+  view,
 }: {
   listing: SafefindListing;
-  mode: "lost" | "found";
-  onFoundCta?: () => void;
+  view: SafefindCardView;
 }) {
+  const badge = cardBadge(view);
+  const cta = cardCta(view, listing.publicId);
   const name = [listing.holderFirstNameMasked, listing.holderLastNameMasked]
     .filter(Boolean)
     .join(" ");
@@ -72,7 +121,7 @@ export function SafefindListingCard({
       <div className="flex items-center justify-between px-4 pt-3">
         <span
           className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${
-            mode === "lost"
+            badge.tone === "lost"
               ? "bg-amber-500/15 text-amber-800"
               : "bg-emerald-600/15 text-emerald-700"
           }`}
@@ -86,7 +135,7 @@ export function SafefindListingCard({
             />
             <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
           </svg>
-          {mode === "lost" ? "JE CHERCHE" : "TROUVÉ"}
+          {badge.label}
         </span>
         <span className="text-[11px] text-[var(--ca-ink-muted)]">🇨🇩 {zone}</span>
       </div>
@@ -166,22 +215,12 @@ export function SafefindListingCard({
       </p>
 
       <div className="p-4 pt-3">
-        {mode === "lost" ? (
-          <Link
-            href={`/safefind/cases/${listing.publicId}`}
-            className="flex w-full items-center justify-center rounded-xl bg-[var(--ca-accent)] py-3 text-sm font-bold text-white transition hover:opacity-95"
-          >
-            C’est le mien
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={onFoundCta}
-            className="flex w-full items-center justify-center rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white transition hover:bg-emerald-800"
-          >
-            Déposer une pièce
-          </button>
-        )}
+        <Link
+          href={cta.href}
+          className={`flex w-full items-center justify-center rounded-xl py-3 text-sm font-bold text-white transition ${cta.className}`}
+        >
+          {cta.label}
+        </Link>
       </div>
     </article>
   );

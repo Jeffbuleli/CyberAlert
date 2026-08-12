@@ -196,7 +196,7 @@ export function SiteHeader({ user = null }: { user?: HeaderUser | null }) {
                 >
                   Paramètres
                 </Link>
-                {sessionUser?.role === "admin" ? (
+                {sessionUser?.role === "admin" || sessionUser?.role === "developer" ? (
                   <Link
                     href="/safefind/partner"
                     className="rounded-2xl px-4 py-3 text-sm font-semibold text-[var(--ca-ink)] hover:bg-[var(--ca-surface-2)]"

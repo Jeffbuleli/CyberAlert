@@ -9,6 +9,7 @@ import { SafefindLostPanel } from "@/components/safefind/SafefindLostPanel";
 import { SafefindFoundPanel } from "@/components/safefind/SafefindFoundPanel";
 import {
   SafefindListingCard,
+  type SafefindCardView,
   type SafefindListing,
 } from "@/components/safefind/SafefindListingCard";
 import { SAFEFIND_DOC_OPTIONS } from "@/components/safefind/doc-types";
@@ -51,6 +52,7 @@ export function SafefindHome() {
 
   const [rulesOpen, setRulesOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [sessionRole, setSessionRole] = useState<string | null>(null);
 
   const patchQuery = useCallback(
     (patch: Record<string, string | null>) => {
@@ -150,6 +152,13 @@ export function SafefindHome() {
   }, [searchParams]);
 
   useEffect(() => {
+    void fetch("/api/auth/me", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setSessionRole(d.user?.role ?? null))
+      .catch(() => setSessionRole(null));
+  }, []);
+
+  useEffect(() => {
     if (hubTab === "marketplace") void loadMarketplace();
     else if (hubTab === "mine") void loadMine("all");
     else void loadMine("active");
@@ -163,6 +172,16 @@ export function SafefindHome() {
 
   const composeTitle =
     mode === "lost" ? "Déclarer une perte" : "Déclarer un trouvé";
+
+  const showPartnerLink =
+    sessionRole === "admin" || sessionRole === "developer";
+
+  function listingCardView(listing: SafefindListing): SafefindCardView {
+    if (hubTab === "marketplace") return { kind: "marketplace" };
+    const myRole = listing.myRole ?? "finder";
+    if (hubTab === "orders") return { kind: "orders", myRole };
+    return { kind: "mine", myRole };
+  }
 
   return (
     <div className="mx-auto min-h-[100dvh] w-full max-w-lg px-4 pb-28 pt-4">
@@ -214,38 +233,40 @@ export function SafefindHome() {
         ))}
       </div>
 
-      <div
-        className="mb-4 flex rounded-2xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)]/80 p-1.5"
-        role="tablist"
-        aria-label="Votre rôle"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "lost"}
-          onClick={() => setMode("lost")}
-          className={`flex-1 rounded-xl py-3 text-sm font-bold transition ${
-            mode === "lost"
-              ? "bg-amber-500 text-white shadow-sm"
-              : "text-[var(--ca-ink-muted)] hover:text-[var(--ca-ink)]"
-          }`}
+      {hubTab === "marketplace" ? (
+        <div
+          className="mb-4 flex rounded-2xl border border-[var(--ca-border)] bg-[var(--ca-surface-raised)]/80 p-1.5"
+          role="tablist"
+          aria-label="Votre rôle"
         >
-          J’ai perdu
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "found"}
-          onClick={() => setMode("found")}
-          className={`flex-1 rounded-xl py-3 text-sm font-bold transition ${
-            mode === "found"
-              ? "bg-emerald-700 text-white shadow-sm"
-              : "text-[var(--ca-ink-muted)] hover:text-[var(--ca-ink)]"
-          }`}
-        >
-          J’ai retrouvé
-        </button>
-      </div>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "lost"}
+            onClick={() => setMode("lost")}
+            className={`flex-1 rounded-xl py-3 text-sm font-bold transition ${
+              mode === "lost"
+                ? "bg-amber-500 text-white shadow-sm"
+                : "text-[var(--ca-ink-muted)] hover:text-[var(--ca-ink)]"
+            }`}
+          >
+            J’ai perdu
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "found"}
+            onClick={() => setMode("found")}
+            className={`flex-1 rounded-xl py-3 text-sm font-bold transition ${
+              mode === "found"
+                ? "bg-emerald-700 text-white shadow-sm"
+                : "text-[var(--ca-ink-muted)] hover:text-[var(--ca-ink)]"
+            }`}
+          >
+            J’ai retrouvé
+          </button>
+        </div>
+      ) : null}
 
       {hubTab === "marketplace" ? (
         <div className="mb-4 space-y-2">
@@ -392,9 +413,13 @@ export function SafefindHome() {
                 : "Aucun dossier pour le moment"}
           </p>
           <p className="mt-1 text-xs text-[var(--ca-ink-muted)]">
-            {mode === "lost"
-              ? "Déclarez une perte ou ouvrez un dossier avec un SafeFind ID."
-              : "Déposez une pièce trouvée au Point SafeFind le plus proche."}
+            {hubTab === "marketplace"
+              ? mode === "lost"
+                ? "Parcourez les pièces trouvées ou déclarez votre perte."
+                : "Déclarez une pièce trouvée via le bouton en bas."
+              : hubTab === "orders"
+                ? "Suivez vos restitutions en cours."
+                : "Retrouvez vos déclarations de perte ou de trouvé."}
           </p>
         </div>
       ) : null}
@@ -404,8 +429,7 @@ export function SafefindHome() {
           <SafefindListingCard
             key={l.publicId}
             listing={l}
-            mode={hubTab === "marketplace" ? mode : "lost"}
-            onFoundCta={() => setComposeOpen(true)}
+            view={listingCardView(l)}
           />
         ))}
       </div>
@@ -414,9 +438,11 @@ export function SafefindHome() {
         <Link href="/safefind/partners" className="underline-offset-4 hover:underline">
           Points SafeFind près de moi
         </Link>
-        <Link href="/safefind/partner" className="underline-offset-4 hover:underline">
-          Espace partenaire
-        </Link>
+        {showPartnerLink ? (
+          <Link href="/safefind/partner" className="underline-offset-4 hover:underline">
+            Espace partenaire
+          </Link>
+        ) : null}
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--ca-border)] bg-[var(--ca-surface)]/95 px-4 py-3 backdrop-blur">
